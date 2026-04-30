@@ -3,8 +3,7 @@ import "../App.css"
 
 function Dashboard() {
   const [selectedPackage, setSelectedPackage] = useState("12345")
-  const [consolidationStep, setConsolidationStep] = useState(1)
-  const [activeAction, setActiveAction] = useState("consolidation")
+  const [activeAction, setActiveAction] = useState(null)
 
   const packages = [
     {
@@ -46,6 +45,8 @@ function Dashboard() {
 
         <nav>
           <a className="active">Packages</a>
+          <a>Consolidation</a>
+          <a>Dispatch</a>
           <a>Invoices</a>
           <a>Addresses</a>
           <a>Support</a>
@@ -97,45 +98,81 @@ function Dashboard() {
         </section>
 
         <section className="dashboard-grid">
-          <div className="packages-card">
-            <div className="section-title">
-              <h2>Available Packages</h2>
-              <p>Select a package to view details and actions.</p>
+          <div>
+            <div className="packages-card">
+              <div className="section-title">
+                <h2>Available Packages</h2>
+                <p>Select a package to view details and actions.</p>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Package</th>
+                    <th>Store</th>
+                    <th>Status</th>
+                    <th>Weight</th>
+                    <th>Received</th>
+                    <th>Storage</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {packages.map((pkg) => (
+                    <tr
+                      key={pkg.id}
+                      onClick={() => setSelectedPackage(pkg.id)}
+                      className={selectedPackage === pkg.id ? "selected-row" : ""}
+                    >
+                      <td>#{pkg.id}</td>
+                      <td>{pkg.store}</td>
+                      <td>
+                        <span className={`status-badge ${pkg.status === "Received" ? "received" : "storage"}`}>
+                          {pkg.status}
+                        </span>
+                      </td>
+                      <td>{pkg.weight}</td>
+                      <td>{pkg.received}</td>
+                      <td>{pkg.storageDays}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Package</th>
-                  <th>Store</th>
-                  <th>Status</th>
-                  <th>Weight</th>
-                  <th>Received</th>
-                  <th>Storage</th>
-                </tr>
-              </thead>
+            {activeAction === "consolidation" && (
+              <section className="workflow-card">
+                <div className="workflow-header">
+                  <h2>Request Consolidation</h2>
+                  <p>Select packaging options and choose which packages to consolidate.</p>
+                </div>
 
-              <tbody>
-                {packages.map((pkg) => (
-                  <tr
-                    key={pkg.id}
-                    onClick={() => setSelectedPackage(pkg.id)}
-                    className={selectedPackage === pkg.id ? "selected-row" : ""}
-                  >
-                    <td>#{pkg.id}</td>
-                    <td>{pkg.store}</td>
-                    <td>
-                      <span className={`status-badge ${pkg.status === "Received" ? "received" : "storage"}`}>
-                        {pkg.status}
-                      </span>
-                    </td>
-                    <td>{pkg.weight}</td>
-                    <td>{pkg.received}</td>
-                    <td>{pkg.storageDays}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <div className="workflow-body">
+                  <div>
+                    <h3>Consolidation Options</h3>
+
+                    <label><input type="checkbox" /> Remove unnecessary boxes</label>
+                    <label><input type="checkbox" /> Reduce box size</label>
+                    <label><input type="checkbox" /> Remove retail packaging</label>
+                    <label><input type="checkbox" /> Bubble wrap fragile items</label>
+                  </div>
+
+                  <div>
+                    <h3>Choose Packages</h3>
+
+                    <select>
+                      <option>Select available packages</option>
+                      <option>Package #12345 - Amazon</option>
+                      <option>Package #67890 - Nike</option>
+                    </select>
+
+                    <textarea placeholder="Special instructions for consolidation..."></textarea>
+
+                    <button className="confirm-btn">Submit Request</button>
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
 
           <aside className="details-panel">
@@ -156,30 +193,11 @@ function Dashboard() {
             <div className="detail-section">
               <h4>Package Details</h4>
 
-              <div className="detail-row">
-                <span>Weight</span>
-                <strong>{currentPackage.weight}</strong>
-              </div>
-
-              <div className="detail-row">
-                <span>Dimensions</span>
-                <strong>{currentPackage.dimensions}</strong>
-              </div>
-
-              <div className="detail-row">
-                <span>Received</span>
-                <strong>{currentPackage.received}</strong>
-              </div>
-
-              <div className="detail-row">
-                <span>Storage Days</span>
-                <strong>{currentPackage.storageDays}</strong>
-              </div>
-
-              <div className="detail-row">
-                <span>Location</span>
-                <strong>{currentPackage.location}</strong>
-              </div>
+              <div className="detail-row"><span>Weight</span><strong>{currentPackage.weight}</strong></div>
+              <div className="detail-row"><span>Dimensions</span><strong>{currentPackage.dimensions}</strong></div>
+              <div className="detail-row"><span>Received</span><strong>{currentPackage.received}</strong></div>
+              <div className="detail-row"><span>Storage Days</span><strong>{currentPackage.storageDays}</strong></div>
+              <div className="detail-row"><span>Location</span><strong>{currentPackage.location}</strong></div>
             </div>
 
             <div className="actions-section">
@@ -194,117 +212,14 @@ function Dashboard() {
                 <b>›</b>
               </button>
 
-              <button onClick={() => setActiveAction("repacking")}>
-                <span>🧊</span>
-                <div>
-                  <strong>Request Repacking</strong>
-                  <p>Reduce box size / remove packaging</p>
-                </div>
-                <b>›</b>
-              </button>
-
-              <button>
-                <span>📝</span>
-                <div>
-                  <strong>Add Instructions</strong>
-                  <p>Add special notes for this package</p>
-                </div>
-                <b>›</b>
-              </button>
-
-              <button>
-                <span>📄</span>
-                <div>
-                  <strong>Upload Invoice</strong>
-                  <p>Upload store or purchase invoice</p>
-                </div>
-                <b>›</b>
-              </button>
-
-              <button>
-                <span>⏸️</span>
-                <div>
-                  <strong>Hold / Store</strong>
-                  <p>Hold this package in warehouse</p>
-                </div>
-                <b>›</b>
-              </button>
-
-              <button className="dispatch-btn">
-                <span>🚚</span>
-                <div>
-                  <strong>Request Dispatch</strong>
-                  <p>Ship this package</p>
-                </div>
-                <b>›</b>
-              </button>
+              <button><span>🧊</span><div><strong>Request Repacking</strong><p>Reduce box size / remove packaging</p></div><b>›</b></button>
+              <button><span>📝</span><div><strong>Add Instructions</strong><p>Add special notes for this package</p></div><b>›</b></button>
+              <button><span>📄</span><div><strong>Upload Invoice</strong><p>Upload store or purchase invoice</p></div><b>›</b></button>
+              <button><span>⏸️</span><div><strong>Hold / Store</strong><p>Hold this package in warehouse</p></div><b>›</b></button>
+              <button className="dispatch-btn"><span>🚚</span><div><strong>Request Dispatch</strong><p>Ship this package</p></div><b>›</b></button>
             </div>
           </aside>
         </section>
-
-        {activeAction === "consolidation" && (
-          <section className="workflow-card">
-            <div className="workflow-header">
-              <h2>Request Consolidation</h2>
-              <p>Combine packages and choose repackaging instructions before dispatch.</p>
-            </div>
-
-            <div className="step-tabs">
-              <button className={consolidationStep === 1 ? "active" : ""}>1. Select Packages</button>
-              <button className={consolidationStep === 2 ? "active" : ""}>2. Options & Instructions</button>
-              <button className={consolidationStep === 3 ? "active" : ""}>3. Review & Confirm</button>
-            </div>
-
-            {consolidationStep === 1 && (
-              <div className="workflow-body">
-                <h3>Select packages to consolidate</h3>
-                <label><input type="checkbox" defaultChecked /> Package #12345 - Amazon</label>
-                <label><input type="checkbox" /> Package #67890 - Nike</label>
-
-                <button className="primary-btn" onClick={() => setConsolidationStep(2)}>
-                  Continue
-                </button>
-              </div>
-            )}
-
-            {consolidationStep === 2 && (
-              <div className="workflow-body">
-                <h3>Options & Instructions</h3>
-
-                <div className="option-grid">
-                  <label><input type="checkbox" defaultChecked /> Combine into one box</label>
-                  <label><input type="checkbox" defaultChecked /> Remove extra packaging</label>
-                  <label><input type="checkbox" /> Repack into smallest box</label>
-                  <label><input type="checkbox" /> Add fragile protection</label>
-                  <label><input type="checkbox" /> Keep original packaging</label>
-                  <label><input type="checkbox" /> Separate items internally</label>
-                </div>
-
-                <select>
-                  <option>Preferred carrier</option>
-                  <option>DHL</option>
-                  <option>FedEx</option>
-                  <option>UPS</option>
-                </select>
-
-                <textarea placeholder="Special instructions..."></textarea>
-
-                <button className="primary-btn" onClick={() => setConsolidationStep(3)}>
-                  Continue
-                </button>
-              </div>
-            )}
-
-            {consolidationStep === 3 && (
-              <div className="workflow-body">
-                <h3>Review & Confirm</h3>
-                <p>Your consolidation request is ready to submit.</p>
-
-                <button className="confirm-btn">Confirm Consolidation</button>
-              </div>
-            )}
-          </section>
-        )}
       </main>
     </div>
   )
