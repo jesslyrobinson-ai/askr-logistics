@@ -58,7 +58,7 @@ function Dashboard() {
       <main className="dashboard-main">
         <header className="dashboard-header">
           <div>
-            <h1>Dashboard</h1>
+            <h1>My Packages</h1>
             <p>Manage received packages, consolidation, repacking, and dispatch requests.</p>
           </div>
 
