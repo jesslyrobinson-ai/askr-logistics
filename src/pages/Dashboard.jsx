@@ -46,8 +46,6 @@ function Dashboard() {
 
         <nav>
           <a className="active">Packages</a>
-          <a>Consolidation</a>
-          <a>Dispatch</a>
           <a>Invoices</a>
           <a>Addresses</a>
           <a>Support</a>
