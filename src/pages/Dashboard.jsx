@@ -45,8 +45,7 @@ function Dashboard() {
         </div>
 
         <nav>
-          <a className="active">Dashboard</a>
-          <a>Packages</a>
+          <a className="active">Packages</a>
           <a>Consolidation</a>
           <a>Dispatch</a>
           <a>Invoices</a>
@@ -102,7 +101,7 @@ function Dashboard() {
         <section className="dashboard-grid">
           <div className="packages-card">
             <div className="section-title">
-              <h2>My Packages</h2>
+              <h2>Available Packages</h2>
               <p>Select a package to view details and actions.</p>
             </div>
 
