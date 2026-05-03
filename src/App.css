@@ -391,3 +391,98 @@ tr:hover,
     display: none;
   }
 }
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: white;
+  padding: 60px;
+  gap: 40px;
+  align-items: center;
+}
+
+.login-left h1 {
+  font-size: 56px;
+  margin: 20px 0 10px;
+}
+
+.login-left p {
+  font-size: 18px;
+  color: #cbd5e1;
+  max-width: 500px;
+}
+
+.brand-icon.large {
+  width: 80px;
+  height: 80px;
+  font-size: 40px;
+}
+
+.login-card {
+  background: white;
+  color: #0f172a;
+  border-radius: 28px;
+  padding: 40px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+}
+
+.login-card h2 {
+  font-size: 34px;
+  margin-bottom: 8px;
+}
+
+.login-card p {
+  color: #64748b;
+  margin-bottom: 28px;
+}
+
+.login-card label {
+  display: block;
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 15px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  font-size: 15px;
+}
+
+.login-card button {
+  width: 100%;
+  margin-top: 25px;
+}
+
+.login-card small {
+  display: block;
+  text-align: center;
+  margin-top: 18px;
+  color: #64748b;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.card th, .card td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.card th {
+  color: #64748b;
+  font-size: 13px;
+}

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import "../App.css"
 
-function Dashboard() {
+function Dashboard({ user, onLogout }) {
   const [selectedPackage, setSelectedPackage] = useState("12345")
   const [activeAction, setActiveAction] = useState(null)
   const [activePage, setActivePage] = useState("packages")
@@ -16,10 +16,22 @@ function Dashboard() {
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-icon">📦</div>
-          <div><h2>ASKR</h2><p>Logistics</p></div>
-        </div>
+  <div className="brand">
+    <div className="brand-icon">📦</div>
+    <div><h2>ASKR</h2><p>Logistics</p></div>
+  </div>
+
+  <p style={{ marginTop: "20px", fontWeight: "600" }}>
+    Welcome, {user?.name}
+  </p>
+
+  <button
+    onClick={onLogout}
+    className="confirm-btn"
+    style={{ marginTop: "10px" }}
+  >
+    Logout
+  </button>
 
         <nav>
           <a className={activePage === "packages" ? "active" : ""} onClick={() => setActivePage("packages")}>Packages</a>
