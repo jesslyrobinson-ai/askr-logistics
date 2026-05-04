@@ -1,6 +1,17 @@
 import "../App.css"
 
 function AdminDashboard({ user, onLogout }) {
+  const queueCards = [
+    { title: "Orders to Ship", count: 3, icon: "🚚" },
+    { title: "Late Orders", count: 3, icon: "⏰" },
+    { title: "Open Shipments", count: 0, icon: "📦" },
+    { title: "Ready for Dispatch", count: 5, icon: "✅" },
+    { title: "Missing Invoices", count: 2, icon: "🧾" },
+    { title: "Pending Consolidation", count: 3, icon: "📦" },
+    { title: "Customer Issues", count: 1, icon: "🎧" },
+    { title: "Storage Expiring", count: 4, icon: "⚠️" },
+  ]
+
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
@@ -33,96 +44,76 @@ function AdminDashboard({ user, onLogout }) {
         <div className="topbar">
           <div>
             <h1>Admin Dashboard</h1>
-            <p>Manage customers, packages, dispatch, and support.</p>
+            <p>Operations overview for packages, requests, dispatch, and support.</p>
           </div>
         </div>
 
-        {/* ✅ STATS */}
-        <section className="stats-grid">
-          <div className="stat-card">
-            <h3>Total Customers</h3>
-            <p>2,458</p>
+        <section className="admin-hero">
+          <div>
+            <h2>Operations Queue</h2>
+            <p>Everything your staff needs to handle next.</p>
           </div>
+          <img
+            src="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=900&q=80"
+            alt="Warehouse"
+          />
+        </section>
 
-          <div className="stat-card">
-            <h3>Packages</h3>
-            <p>1,342</p>
-          </div>
+        <section className="queue-section">
+          <h2>Pending Actions</h2>
 
-          <div className="stat-card">
-            <h3>Pending Dispatch</h3>
-            <p>278</p>
-          </div>
-
-          <div className="stat-card">
-            <h3>Tickets</h3>
-            <p>36</p>
+          <div className="queue-grid">
+            {queueCards.map((card) => (
+              <div className="queue-card" key={card.title}>
+                <div className="queue-icon">{card.icon}</div>
+                <h3>{card.count}</h3>
+                <p>{card.title}</p>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* ✅ 2 COLUMN GRID */}
-        <div className="admin-grid">
-
-          {/* LEFT: PACKAGES */}
+        <section className="admin-grid">
           <div className="card">
-            <h2>Recent Packages</h2>
+            <h2>Active Tasks</h2>
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Package</th>
-                  <th>Customer</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>📦 PKG-1234</td>
-                  <td>Jessly</td>
-                  <td>Warehouse</td>
-                  <td><button className="confirm-btn">View</button></td>
-                </tr>
+            <div className="task-card">
+              <div>
+                <h3>Consolidation Request</h3>
+                <p>Jessly Robinson • PKG-12345</p>
+              </div>
+              <span className="status pending">Pending</span>
+            </div>
 
-                <tr>
-                  <td>👟 PKG-5678</td>
-                  <td>Drew</td>
-                  <td>Dispatch</td>
-                  <td><button className="confirm-btn">View</button></td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="task-card">
+              <div>
+                <h3>Missing Invoice</h3>
+                <p>Customer needs invoice upload</p>
+              </div>
+              <span className="status warning">Needs Action</span>
+            </div>
           </div>
 
-          {/* RIGHT: DISPATCH */}
           <div className="card">
-            <h2>Pending Dispatch</h2>
+            <h2>Support Center</h2>
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Package</th>
-                  <th>Destination</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>PKG-7788</td>
-                  <td>USA</td>
-                  <td><button className="confirm-btn">Approve</button></td>
-                </tr>
+            <div className="task-card">
+              <div>
+                <h3>Package Issue</h3>
+                <p>Customer asked for proof photo</p>
+              </div>
+              <button className="confirm-btn">View</button>
+            </div>
 
-                <tr>
-                  <td>PKG-8899</td>
-                  <td>UK</td>
-                  <td><button className="confirm-btn">Approve</button></td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="task-card">
+              <div>
+                <h3>Dispatch Question</h3>
+                <p>Customer waiting for update</p>
+              </div>
+              <button className="confirm-btn">Reply</button>
+            </div>
           </div>
-
-        </div>
+        </section>
       </main>
     </div>
   )
