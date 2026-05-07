@@ -347,3 +347,159 @@ button {
   background: #dcfce7;
   color: #166534;
 }
+
+.sidebar nav a {
+  color: #cbd5e1;
+  text-decoration: none;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sidebar nav a.active,
+.sidebar nav a:hover {
+  background: rgba(255,255,255,0.12);
+  color: white;
+}
+
+.dashboard-main {
+  flex: 1;
+  padding: 28px;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.primary-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card,
+.packages-card,
+.workflow-card,
+.details-panel {
+  background: white;
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
+}
+
+.stat-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.stat-icon {
+  font-size: 28px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 0.9fr;
+  gap: 24px;
+}
+
+.packages-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.packages-card th,
+.packages-card td {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.selected-row {
+  background: #eef6ff;
+}
+
+.status-badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-badge.received {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.storage {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.workflow-card {
+  margin-top: 24px;
+}
+
+.workflow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.workflow-body input,
+.workflow-body select,
+.workflow-body textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+}
+
+.details-panel {
+  height: fit-content;
+}
+
+.main-package-img {
+  background: #f1f5f9;
+  border-radius: 20px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 54px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.actions-section button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  background: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
