@@ -4,6 +4,7 @@ import "../App.css"
 function AdminDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState("overview")
   const [requests, setRequests] = useState([])
+  const [selectedRequest, setSelectedRequest] = useState(null)
 
   useEffect(() => {
     const savedRequests = JSON.parse(localStorage.getItem("requests")) || []
@@ -17,6 +18,10 @@ function AdminDashboard({ user, onLogout }) {
 
     setRequests(updated)
     localStorage.setItem("requests", JSON.stringify(updated))
+
+    if (selectedRequest?.id === id) {
+      setSelectedRequest({ ...selectedRequest, status })
+    }
   }
 
   const pendingRequests = requests.filter((r) => r.status === "Pending")
@@ -110,42 +115,94 @@ function AdminDashboard({ user, onLogout }) {
             </div>
           </section>
 
-          <section className="card">
-            <h2>Customer Requests</h2>
+          <section className="admin-grid">
+            <div className="card">
+              <h2>Customer Requests</h2>
 
-            {requests.length === 0 && (
-              <div className="task-card">
-                <div>
-                  <h3>No customer requests yet</h3>
-                  <p>Requests from the client dashboard will appear here.</p>
+              {requests.length === 0 && (
+                <div className="task-card">
+                  <div>
+                    <h3>No customer requests yet</h3>
+                    <p>Requests from the client dashboard will appear here.</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {requests.map((request) => (
-              <div className="task-card" key={request.id}>
-                <div>
-                  <h3>{request.type}</h3>
-                  <p>{request.customer} • {request.email} • {request.date}</p>
-                </div>
+              {requests.map((request) => (
+                <div className="task-card" key={request.id}>
+                  <div>
+                    <h3>{request.type}</h3>
+                    <p>{request.customer} • {request.date}</p>
+                  </div>
 
-                <div>
-                  <span className={request.status === "Completed" ? "status success" : "status pending"}>
-                    {request.status}
-                  </span>
+                  <div>
+                    <span className={request.status === "Completed" ? "status success" : "status pending"}>
+                      {request.status}
+                    </span>
 
-                  {request.status === "Pending" && (
                     <button
                       className="confirm-btn"
                       style={{ marginLeft: "10px" }}
-                      onClick={() => updateRequestStatus(request.id, "Completed")}
+                      onClick={() => setSelectedRequest(request)}
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="card">
+              <h2>Request Details</h2>
+
+              {!selectedRequest && (
+                <div className="task-card">
+                  <div>
+                    <h3>Select a request</h3>
+                    <p>Click View Details to manage a customer request.</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedRequest && (
+                <>
+                  <div className="task-card">
+                    <div>
+                      <h3>{selectedRequest.type}</h3>
+                      <p>{selectedRequest.customer}</p>
+                    </div>
+                    <span className={selectedRequest.status === "Completed" ? "status success" : "status pending"}>
+                      {selectedRequest.status}
+                    </span>
+                  </div>
+
+                  <div className="detail-row">
+                    <span>Email</span>
+                    <strong>{selectedRequest.email}</strong>
+                  </div>
+
+                  <div className="detail-row">
+                    <span>Date</span>
+                    <strong>{selectedRequest.date}</strong>
+                  </div>
+
+                  <div className="detail-row">
+                    <span>Status</span>
+                    <strong>{selectedRequest.status}</strong>
+                  </div>
+
+                  {selectedRequest.status === "Pending" && (
+                    <button
+                      className="confirm-btn"
+                      style={{ marginTop: "16px" }}
+                      onClick={() => updateRequestStatus(selectedRequest.id, "Completed")}
                     >
                       Mark Done
                     </button>
                   )}
-                </div>
-              </div>
-            ))}
+                </>
+              )}
+            </div>
           </section>
         </main>
       )}
