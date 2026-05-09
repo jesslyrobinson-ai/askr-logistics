@@ -6,36 +6,94 @@ function Dashboard({ user, onLogout }) {
   const [activeAction, setActiveAction] = useState(null)
   const [activePage, setActivePage] = useState("packages")
   const [requests, setRequests] = useState([])
+  const [packageStatuses, setPackageStatuses] = useState({})
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("requests")) || []
-    setRequests(saved)
+    setRequests(JSON.parse(localStorage.getItem("requests")) || [])
+    setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
   }, [])
+
+  const basePackages = [
+    {
+      id: "12345",
+      store: "Amazon",
+      tracking: "1Z999AA10123456784",
+      status: "Received",
+      weight: "3.2 lbs",
+      dimensions: "12 x 10 x 8 in",
+      received: "May 20, 2025",
+      storageDays: "13 days",
+      location: "A-12-03",
+    },
+    {
+      id: "67890",
+      store: "Nike",
+      tracking: "9400111206213890000000",
+      status: "In Storage",
+      weight: "5.1 lbs",
+      dimensions: "16 x 12 x 10 in",
+      received: "May 19, 2025",
+      storageDays: "12 days",
+      location: "B-08-11",
+    },
+  ]
+
+  const packages = basePackages.map((pkg) => ({
+    ...pkg,
+    status: packageStatuses[pkg.id] || pkg.status,
+  }))
+
+  const currentPackage = packages.find((pkg) => pkg.id === selectedPackage)
 
   const createRequest = (type) => {
     const saved = JSON.parse(localStorage.getItem("requests")) || []
+
+    const pendingStatus =
+      type.includes("Consolidation") ? "Consolidation Pending" :
+      type.includes("Invoice") ? "Invoice Pending" :
+      type.includes("Dispatch") ? "Dispatch Pending" :
+      type.includes("Hold") ? "Storage Pending" :
+      "Request Pending"
+
+    const updatedStatuses = {
+      ...packageStatuses,
+      [currentPackage.id]: pendingStatus,
+    }
 
     const newRequest = {
       id: Date.now(),
       type,
       customer: user?.name || "Customer",
       email: user?.email || "customer@email.com",
+      packageId: currentPackage.id,
+      packageStore: currentPackage.store,
       status: "Pending",
       date: new Date().toLocaleString(),
     }
 
-    const updated = [newRequest, ...saved]
-    localStorage.setItem("requests", JSON.stringify(updated))
-    setRequests(updated)
+    const updatedRequests = [newRequest, ...saved]
+
+    localStorage.setItem("requests", JSON.stringify(updatedRequests))
+    localStorage.setItem("packageStatuses", JSON.stringify(updatedStatuses))
+
+    setRequests(updatedRequests)
+    setPackageStatuses(updatedStatuses)
+
     alert(`${type} submitted successfully`)
   }
 
-  const packages = [
-    { id: "12345", store: "Amazon", tracking: "1Z999AA10123456784", status: "Received", weight: "3.2 lbs", dimensions: "12 x 10 x 8 in", received: "May 20, 2025", storageDays: "13 days", location: "A-12-03" },
-    { id: "67890", store: "Nike", tracking: "9400111206213890000000", status: "In Storage", weight: "5.1 lbs", dimensions: "16 x 12 x 10 in", received: "May 19, 2025", storageDays: "12 days", location: "B-08-11" },
-  ]
+  const clearCompletedRequests = () => {
+    const updated = requests.filter((request) => request.status !== "Completed")
+    localStorage.setItem("requests", JSON.stringify(updated))
+    setRequests(updated)
+  }
 
-  const currentPackage = packages.find((pkg) => pkg.id === selectedPackage)
+  const activeRequests = requests.filter((request) => request.status !== "Completed")
+  const completedRequests = requests.filter((request) => request.status === "Completed")
+
+  const receivedCount = packages.filter((pkg) => pkg.status === "Received").length
+  const storageCount = packages.filter((pkg) => pkg.status === "In Storage").length
+  const readyCount = packages.filter((pkg) => pkg.status === "Ready for Dispatch").length
 
   return (
     <div className="dashboard-layout">
@@ -58,6 +116,7 @@ function Dashboard({ user, onLogout }) {
           <a className={activePage === "consolidation" ? "active" : ""} onClick={() => setActivePage("consolidation")}>Consolidation</a>
           <a className={activePage === "dispatch" ? "active" : ""} onClick={() => setActivePage("dispatch")}>Dispatch</a>
           <a className={activePage === "invoices" ? "active" : ""} onClick={() => setActivePage("invoices")}>Invoices</a>
+          <a className={activePage === "history" ? "active" : ""} onClick={() => setActivePage("history")}>History</a>
           <a className={activePage === "profile" ? "active" : ""} onClick={() => setActivePage("profile")}>My Profile</a>
           <a className={activePage === "support" ? "active" : ""} onClick={() => setActivePage("support")}>Support</a>
         </nav>
@@ -77,10 +136,10 @@ function Dashboard({ user, onLogout }) {
             </header>
 
             <section className="stats-grid">
-              <div className="stat-card blue"><div className="stat-icon">📦</div><div><h3>2</h3><p>Packages Received</p></div></div>
-              <div className="stat-card green"><div className="stat-icon">🏬</div><div><h3>1</h3><p>In Storage</p></div></div>
-              <div className="stat-card orange"><div className="stat-icon">⬇️</div><div><h3>0</h3><p>Ready for Dispatch</p></div></div>
-              <div className="stat-card purple"><div className="stat-icon">🚚</div><div><h3>3</h3><p>Total Dispatches</p></div></div>
+              <div className="stat-card blue"><div className="stat-icon">📦</div><div><h3>{receivedCount}</h3><p>Packages Received</p></div></div>
+              <div className="stat-card green"><div className="stat-icon">🏬</div><div><h3>{storageCount}</h3><p>In Storage</p></div></div>
+              <div className="stat-card orange"><div className="stat-icon">⬇️</div><div><h3>{readyCount}</h3><p>Ready for Dispatch</p></div></div>
+              <div className="stat-card purple"><div className="stat-icon">🚚</div><div><h3>{completedRequests.length}</h3><p>Completed Jobs</p></div></div>
             </section>
 
             <section className="dashboard-grid">
@@ -100,7 +159,7 @@ function Dashboard({ user, onLogout }) {
                         <tr key={pkg.id} onClick={() => setSelectedPackage(pkg.id)} className={selectedPackage === pkg.id ? "selected-row" : ""}>
                           <td>#{pkg.id}</td>
                           <td>{pkg.store}</td>
-                          <td><span className={`status-badge ${pkg.status === "Received" ? "received" : "storage"}`}>{pkg.status}</span></td>
+                          <td><span className="status-badge storage">{pkg.status}</span></td>
                           <td>{pkg.weight}</td>
                           <td>{pkg.received}</td>
                           <td>{pkg.storageDays}</td>
@@ -110,63 +169,43 @@ function Dashboard({ user, onLogout }) {
                   </table>
                 </div>
 
-                {requests.length > 0 && (
+                {activeRequests.length > 0 && (
                   <section className="workflow-card">
                     <div className="workflow-header">
-                      <h2>Your Requests</h2>
-                      <p>Track requests sent to admin.</p>
+                      <h2>Your Active Requests</h2>
+                      <p>Pending requests sent to admin.</p>
                     </div>
 
                     <div className="workflow-body">
-                      {requests.map((r) => (
+                      {activeRequests.map((r) => (
                         <div className="task-card" key={r.id}>
                           <div>
                             <h3>{r.type}</h3>
-                            <p>{r.date}</p>
+                            <p>Package #{r.packageId} • {r.packageStore} • {r.date}</p>
                           </div>
-                          <span className={r.status === "Completed" ? "status success" : "status pending"}>
-                            {r.status}
-                          </span>
+                          <span className="status pending">{r.status}</span>
                         </div>
                       ))}
-                    </div>
-                  </section>
-                )}
-
-                {activeAction === "invoice" && (
-                  <section className="workflow-card">
-                    <div className="workflow-header"><h2>Upload Invoice</h2><p>Upload the store invoice or receipt for Package #{currentPackage.id}.</p></div>
-                    <div className="workflow-body">
-                      <h3>Invoice Upload</h3>
-                      <p>Selected package: <strong>#{currentPackage.id} - {currentPackage.store}</strong></p>
-                      <label>Select invoice file<input type="file" /></label>
-                      <textarea placeholder="Add any invoice notes..."></textarea>
-                      <button className="confirm-btn" onClick={() => createRequest("Invoice Upload")}>Submit Invoice</button>
-                    </div>
-                  </section>
-                )}
-
-                {activeAction === "hold" && (
-                  <section className="workflow-card">
-                    <div className="workflow-header"><h2>Hold / Store Package</h2><p>Choose storage options for Package #{currentPackage.id}.</p></div>
-                    <div className="workflow-body">
-                      <h3>Storage Request</h3>
-                      <p>Selected package: <strong>#{currentPackage.id} - {currentPackage.store}</strong></p>
-                      <select><option>Select hold reason</option><option>For consolidation</option><option>Do not consolidate</option></select>
-                      <select><option>Select storage duration</option><option>2 days</option><option>3 days</option><option>4 days</option><option>5 days</option></select>
-                      <textarea placeholder="Special storage instructions..."></textarea>
-                      <button className="confirm-btn" onClick={() => createRequest("Hold / Store Package")}>Confirm Hold Request</button>
                     </div>
                   </section>
                 )}
               </div>
 
               <aside className="details-panel">
-                <div className="package-top"><p className="small-label">Store</p><h3>{currentPackage.store}</h3><p className="tracking">Tracking # {currentPackage.tracking}</p></div>
-                <div className="package-images"><div className="main-package-img">📦</div><div className="mini-images"><div>📦</div><div>+2</div></div></div>
+                <div className="package-top">
+                  <p className="small-label">Store</p>
+                  <h3>{currentPackage.store}</h3>
+                  <p className="tracking">Tracking # {currentPackage.tracking}</p>
+                </div>
+
+                <div className="package-images">
+                  <div className="main-package-img">📦</div>
+                  <div className="mini-images"><div>📦</div><div>+2</div></div>
+                </div>
 
                 <div className="detail-section">
                   <h4>Package Details</h4>
+                  <div className="detail-row"><span>Status</span><strong>{currentPackage.status}</strong></div>
                   <div className="detail-row"><span>Weight</span><strong>{currentPackage.weight}</strong></div>
                   <div className="detail-row"><span>Dimensions</span><strong>{currentPackage.dimensions}</strong></div>
                   <div className="detail-row"><span>Received</span><strong>{currentPackage.received}</strong></div>
@@ -185,6 +224,51 @@ function Dashboard({ user, onLogout }) {
           </>
         )}
 
+        {activePage === "history" && (
+          <>
+            <header className="dashboard-header">
+              <div>
+                <h1>History</h1>
+                <p>View completed jobs and past requests.</p>
+              </div>
+
+              {completedRequests.length > 0 && (
+                <button className="primary-btn" onClick={clearCompletedRequests}>
+                  Clear History
+                </button>
+              )}
+            </header>
+
+            <section className="workflow-card">
+              <div className="workflow-header">
+                <h2>Completed Jobs</h2>
+                <p>All completed requests will appear here.</p>
+              </div>
+
+              <div className="workflow-body">
+                {completedRequests.length === 0 && (
+                  <div className="task-card">
+                    <div>
+                      <h3>No completed jobs yet</h3>
+                      <p>When admin marks a request done, it will appear here.</p>
+                    </div>
+                  </div>
+                )}
+
+                {completedRequests.map((r) => (
+                  <div className="task-card" key={r.id}>
+                    <div>
+                      <h3>{r.type}</h3>
+                      <p>Package #{r.packageId} • {r.packageStore} • {r.date}</p>
+                    </div>
+                    <span className="status success">Completed</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
         {activePage === "consolidation" && (
           <>
             <header className="dashboard-header">
@@ -192,48 +276,13 @@ function Dashboard({ user, onLogout }) {
               <button className="primary-btn" onClick={() => createRequest("Consolidation Request")}>New Consolidation</button>
             </header>
 
-            <section className="dashboard-grid">
-              <div>
-                <div className="packages-card">
-                  <div className="section-title"><h2>Select Packages</h2><p>Choose which packages should be combined.</p></div>
-                  <div className="workflow-body">
-                    {packages.map((pkg) => <label key={pkg.id}><input type="checkbox" /> Package #{pkg.id} - {pkg.store} ({pkg.weight})</label>)}
-                  </div>
-                </div>
-
-                <section className="workflow-card">
-                  <div className="workflow-header"><h2>Consolidation Options</h2><p>Choose how you want your packages handled.</p></div>
-                  <div className="workflow-body">
-                    <label><input type="checkbox" /> Remove unnecessary boxes</label>
-                    <label><input type="checkbox" /> Reduce box size</label>
-                    <label><input type="checkbox" /> Remove retail packaging</label>
-                    <label><input type="checkbox" /> Bubble wrap fragile items</label>
-                    <label><input type="checkbox" /> Consolidate into one box</label>
-                    <label><input type="checkbox" /> Split into optimized boxes</label>
-                    <label><input type="checkbox" /> Reinforce packaging for international shipping</label>
-                    <label><input type="checkbox" /> Add extra padding / protection</label>
-                    <label><input type="checkbox" /> Remove invoices from package</label>
-                    <label><input type="checkbox" /> Take photos before sealing</label>
-                    <label><input type="checkbox" /> Vacuum seal soft goods</label>
-                    <label><input type="checkbox" /> Keep original boxes</label>
-                    <h3>Special Instructions</h3>
-                    <textarea placeholder="Special instructions for consolidation..."></textarea>
-                    <button className="confirm-btn" onClick={() => createRequest("Consolidation Request")}>Submit Consolidation Request</button>
-                  </div>
-                </section>
+            <section className="workflow-card">
+              <div className="workflow-header"><h2>Consolidation Options</h2><p>Choose how you want your packages handled.</p></div>
+              <div className="workflow-body">
+                {packages.map((pkg) => <label key={pkg.id}><input type="checkbox" /> Package #{pkg.id} - {pkg.store} ({pkg.weight})</label>)}
+                <textarea placeholder="Special instructions for consolidation..."></textarea>
+                <button className="confirm-btn" onClick={() => createRequest("Consolidation Request")}>Submit Consolidation Request</button>
               </div>
-
-              <aside className="details-panel">
-                <div className="package-top"><p className="small-label">Summary</p><h3>Consolidation Review</h3><p className="tracking">Review package count, weight, and selected options.</p></div>
-                <div className="package-images"><div className="main-package-img">📦</div><div className="mini-images"><div>📦</div><div>+1</div></div></div>
-                <div className="detail-section">
-                  <h4>Request Details</h4>
-                  <div className="detail-row"><span>Selected Packages</span><strong>2</strong></div>
-                  <div className="detail-row"><span>Total Weight</span><strong>8.3 lbs</strong></div>
-                  <div className="detail-row"><span>Estimated Box</span><strong>Medium</strong></div>
-                  <div className="detail-row"><span>Status</span><strong>Draft</strong></div>
-                </div>
-              </aside>
             </section>
           </>
         )}
@@ -248,11 +297,8 @@ function Dashboard({ user, onLogout }) {
             <section className="workflow-card">
               <div className="workflow-header"><h2>Request Dispatch</h2><p>Choose which packages you want shipped.</p></div>
               <div className="workflow-body">
-                <h3>Select Packages</h3>
                 {packages.map((pkg) => <label key={pkg.id}><input type="checkbox" /> Package #{pkg.id} - {pkg.store} ({pkg.weight})</label>)}
-                <h3>Shipping Carrier</h3>
                 <select><option>Select carrier</option><option>DHL</option><option>FedEx</option><option>UPS</option></select>
-                <h3>Shipping Speed</h3>
                 <select><option>Select shipping speed</option><option>Standard</option><option>Express</option><option>Priority</option></select>
                 <textarea placeholder="Delivery instructions or special notes..."></textarea>
                 <button className="confirm-btn" onClick={() => createRequest("Dispatch Request")}>Submit Dispatch Request</button>
@@ -271,12 +317,10 @@ function Dashboard({ user, onLogout }) {
             <section className="workflow-card">
               <div className="workflow-header"><h2>Upload Invoice</h2><p>Select a package and upload the store invoice or receipt.</p></div>
               <div className="workflow-body">
-                <h3>Select Package</h3>
                 <select>
                   <option>Select package</option>
                   {packages.map((pkg) => <option key={pkg.id}>Package #{pkg.id} - {pkg.store}</option>)}
                 </select>
-                <h3>Invoice File</h3>
                 <label>Upload invoice<input type="file" /></label>
                 <textarea placeholder="Add invoice notes or item details..."></textarea>
                 <button className="confirm-btn" onClick={() => createRequest("Invoice Upload")}>Submit Invoice</button>
@@ -286,126 +330,32 @@ function Dashboard({ user, onLogout }) {
         )}
 
         {activePage === "profile" && (
-          <>
-            <header className="dashboard-header">
-              <div><h1>My Profile</h1><p>Manage your personal information, address, and package labels.</p></div>
-              <button className="primary-btn">New Request</button>
-            </header>
-
-            <section>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-                <div className="packages-card">
-                  <div className="section-title"><h2>👤 Profile Information</h2></div>
-                  <div className="detail-section">
-                    <div className="main-package-img" style={{ marginBottom: "20px" }}>👤</div>
-                    <div className="detail-row"><span>Name</span><strong>Jessly Robinson</strong></div>
-                    <div className="detail-row"><span>Email</span><strong>example@email.com</strong></div>
-                    <div className="detail-row"><span>Phone</span><strong>123-456-7890</strong></div>
-                  </div>
-                </div>
-
-                <div className="packages-card">
-                  <div className="section-title"><h2>📍 My Address</h2></div>
-                  <div className="detail-section">
-                    <div className="main-package-img" style={{ marginBottom: "20px" }}>🏠</div>
-                    <div className="detail-row"><span>Street</span><strong>123 Main St</strong></div>
-                    <div className="detail-row"><span>City</span><strong>Miami</strong></div>
-                    <div className="detail-row"><span>Country</span><strong>USA</strong></div>
-                    <div className="detail-row"><span>Phone</span><strong>123-456-7890</strong></div>
-                  </div>
-                  <button className="primary-btn">Edit Address</button>
-                </div>
-              </div>
-            </section>
-          </>
+          <header className="dashboard-header">
+            <div><h1>My Profile</h1><p>Manage your personal information, address, and package labels.</p></div>
+            <button className="primary-btn">New Request</button>
+          </header>
         )}
 
         {activePage === "support" && (
           <>
             <header className="dashboard-header">
-              <div>
-                <h1>Support</h1>
-                <p>Get help, submit requests, and track support tickets.</p>
-              </div>
+              <div><h1>Support</h1><p>Get help, submit requests, and track support tickets.</p></div>
               <button className="primary-btn" onClick={() => createRequest("Support Ticket")}>New Ticket</button>
             </header>
 
-            <section className="dashboard-grid">
-              <div>
-                <div className="packages-card">
-                  <div className="section-title">
-                    <h2>Support Tickets</h2>
-                    <p>View and manage your support requests.</p>
-                  </div>
-
-                  <table>
-                    <thead>
-                      <tr><th>ID</th><th>Issue</th><th>Status</th><th>Date</th></tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>#001</td>
-                        <td>Missing package item</td>
-                        <td><span className="status-badge received">Open</span></td>
-                        <td>May 22</td>
-                      </tr>
-                      <tr>
-                        <td>#002</td>
-                        <td>Invoice question</td>
-                        <td><span className="status-badge storage">Closed</span></td>
-                        <td>May 20</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <section className="workflow-card">
-                  <div className="workflow-header">
-                    <h2>Create Support Request</h2>
-                    <p>Submit a new issue or question.</p>
-                  </div>
-
-                  <div className="workflow-body">
-                    <h3>Issue Type</h3>
-                    <select>
-                      <option>Select issue</option>
-                      <option>Missing item</option>
-                      <option>Damaged package</option>
-                      <option>Billing issue</option>
-                      <option>General question</option>
-                    </select>
-
-                    <h3>Message</h3>
-                    <textarea placeholder="Describe your issue..." />
-
-                    <button className="confirm-btn" onClick={() => createRequest("Support Ticket")}>Submit Ticket</button>
-                  </div>
-                </section>
+            <section className="workflow-card">
+              <div className="workflow-header"><h2>Create Support Request</h2><p>Submit a new issue or question.</p></div>
+              <div className="workflow-body">
+                <select>
+                  <option>Select issue</option>
+                  <option>Missing item</option>
+                  <option>Damaged package</option>
+                  <option>Billing issue</option>
+                  <option>General question</option>
+                </select>
+                <textarea placeholder="Describe your issue..." />
+                <button className="confirm-btn" onClick={() => createRequest("Support Ticket")}>Submit Ticket</button>
               </div>
-
-              <aside className="details-panel">
-                <div className="package-top">
-                  <p className="small-label">Help Center</p>
-                  <h3>Support Overview</h3>
-                  <p className="tracking">Track and manage your support requests.</p>
-                </div>
-
-                <div className="package-images">
-                  <div className="main-package-img">💬</div>
-                  <div className="mini-images">
-                    <div>📩</div>
-                    <div>+2</div>
-                  </div>
-                </div>
-
-                <div className="detail-section">
-                  <h4>Summary</h4>
-                  <div className="detail-row"><span>Total Tickets</span><strong>2</strong></div>
-                  <div className="detail-row"><span>Open</span><strong>1</strong></div>
-                  <div className="detail-row"><span>Closed</span><strong>1</strong></div>
-                  <div className="detail-row"><span>Status</span><strong>Active</strong></div>
-                </div>
-              </aside>
             </section>
           </>
         )}

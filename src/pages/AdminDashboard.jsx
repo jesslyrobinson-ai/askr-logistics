@@ -5,19 +5,40 @@ function AdminDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState("overview")
   const [requests, setRequests] = useState([])
   const [selectedRequest, setSelectedRequest] = useState(null)
+  const [requestFilter, setRequestFilter] = useState("All")
+  const [packageStatuses, setPackageStatuses] = useState({})
 
   useEffect(() => {
-    const savedRequests = JSON.parse(localStorage.getItem("requests")) || []
-    setRequests(savedRequests)
+    setRequests(JSON.parse(localStorage.getItem("requests")) || [])
+    setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
   }, [])
 
+  const getNewPackageStatus = (type) => {
+    if (type.includes("Consolidation")) return "Ready for Dispatch"
+    if (type.includes("Invoice")) return "Invoice Uploaded"
+    if (type.includes("Dispatch")) return "Out for Delivery"
+    if (type.includes("Hold")) return "In Storage"
+    return "Completed"
+  }
+
   const updateRequestStatus = (id, status) => {
-    const updated = requests.map((request) =>
+    const requestToUpdate = requests.find((r) => r.id === id)
+
+    const updatedRequests = requests.map((request) =>
       request.id === id ? { ...request, status } : request
     )
 
-    setRequests(updated)
-    localStorage.setItem("requests", JSON.stringify(updated))
+    let updatedPackageStatuses = { ...packageStatuses }
+
+    if (requestToUpdate?.packageId) {
+      updatedPackageStatuses[requestToUpdate.packageId] = getNewPackageStatus(requestToUpdate.type)
+    }
+
+    setRequests(updatedRequests)
+    setPackageStatuses(updatedPackageStatuses)
+
+    localStorage.setItem("requests", JSON.stringify(updatedRequests))
+    localStorage.setItem("packageStatuses", JSON.stringify(updatedPackageStatuses))
 
     if (selectedRequest?.id === id) {
       setSelectedRequest({ ...selectedRequest, status })
@@ -25,6 +46,11 @@ function AdminDashboard({ user, onLogout }) {
   }
 
   const pendingRequests = requests.filter((r) => r.status === "Pending")
+
+  const filteredRequests =
+    requestFilter === "All"
+      ? requests
+      : requests.filter((request) => request.status === requestFilter)
 
   const queueCards = [
     { title: "Orders to Ship", count: 3, icon: "🚚" },
@@ -45,8 +71,8 @@ function AdminDashboard({ user, onLogout }) {
   ]
 
   const packages = [
-    ["PKG-12345", "Jessly Robinson", "Amazon", "Missing Invoice"],
-    ["PKG-88721", "Andrew Seymour", "Nike", "Awaiting Consolidation"],
+    ["PKG-12345", "Jessly Robinson", "Amazon", packageStatuses["12345"] || "Missing Invoice"],
+    ["PKG-67890", "Jessly Robinson", "Nike", packageStatuses["67890"] || "In Storage"],
     ["PKG-55219", "Robert Parker", "Apple", "Ready for Dispatch"],
     ["PKG-33091", "Lisa Thompson", "Shein", "New Arrival"],
   ]
@@ -64,15 +90,10 @@ function AdminDashboard({ user, onLogout }) {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">📦</div>
-          <div>
-            <h2>ASKR</h2>
-            <p>Logistics</p>
-          </div>
+          <div><h2>ASKR</h2><p>Logistics</p></div>
         </div>
 
-        <p style={{ marginTop: "20px", fontWeight: "600" }}>
-          Admin: {user?.name}
-        </p>
+        <p style={{ marginTop: "20px", fontWeight: "600" }}>Admin: {user?.name}</p>
 
         <button onClick={onLogout} className="confirm-btn">Logout</button>
 
@@ -117,22 +138,29 @@ function AdminDashboard({ user, onLogout }) {
 
           <section className="admin-grid">
             <div className="card">
-              <h2>Customer Requests</h2>
+              <div className="topbar">
+                <h2>Customer Requests</h2>
+                <div>
+                  <button className="confirm-btn" onClick={() => setRequestFilter("All")}>All</button>
+                  <button className="confirm-btn" style={{ marginLeft: "8px" }} onClick={() => setRequestFilter("Pending")}>Pending</button>
+                  <button className="confirm-btn" style={{ marginLeft: "8px" }} onClick={() => setRequestFilter("Completed")}>Completed</button>
+                </div>
+              </div>
 
-              {requests.length === 0 && (
+              {filteredRequests.length === 0 && (
                 <div className="task-card">
                   <div>
-                    <h3>No customer requests yet</h3>
-                    <p>Requests from the client dashboard will appear here.</p>
+                    <h3>No requests</h3>
+                    <p>Customer requests will appear here.</p>
                   </div>
                 </div>
               )}
 
-              {requests.map((request) => (
+              {filteredRequests.map((request) => (
                 <div className="task-card" key={request.id}>
                   <div>
                     <h3>{request.type}</h3>
-                    <p>{request.customer} • {request.date}</p>
+                    <p>{request.customer} • Package #{request.packageId} • {request.date}</p>
                   </div>
 
                   <div>
@@ -140,11 +168,7 @@ function AdminDashboard({ user, onLogout }) {
                       {request.status}
                     </span>
 
-                    <button
-                      className="confirm-btn"
-                      style={{ marginLeft: "10px" }}
-                      onClick={() => setSelectedRequest(request)}
-                    >
+                    <button className="confirm-btn" style={{ marginLeft: "10px" }} onClick={() => setSelectedRequest(request)}>
                       View Details
                     </button>
                   </div>
@@ -176,27 +200,13 @@ function AdminDashboard({ user, onLogout }) {
                     </span>
                   </div>
 
-                  <div className="detail-row">
-                    <span>Email</span>
-                    <strong>{selectedRequest.email}</strong>
-                  </div>
-
-                  <div className="detail-row">
-                    <span>Date</span>
-                    <strong>{selectedRequest.date}</strong>
-                  </div>
-
-                  <div className="detail-row">
-                    <span>Status</span>
-                    <strong>{selectedRequest.status}</strong>
-                  </div>
+                  <div className="detail-row"><span>Email</span><strong>{selectedRequest.email}</strong></div>
+                  <div className="detail-row"><span>Package</span><strong>#{selectedRequest.packageId} - {selectedRequest.packageStore}</strong></div>
+                  <div className="detail-row"><span>Date</span><strong>{selectedRequest.date}</strong></div>
+                  <div className="detail-row"><span>Status</span><strong>{selectedRequest.status}</strong></div>
 
                   {selectedRequest.status === "Pending" && (
-                    <button
-                      className="confirm-btn"
-                      style={{ marginTop: "16px" }}
-                      onClick={() => updateRequestStatus(selectedRequest.id, "Completed")}
-                    >
+                    <button className="confirm-btn" style={{ marginTop: "16px" }} onClick={() => updateRequestStatus(selectedRequest.id, "Completed")}>
                       Mark Done
                     </button>
                   )}
@@ -238,9 +248,7 @@ function AdminDashboard({ user, onLogout }) {
             </div>
 
             <table className="customer-table">
-              <thead>
-                <tr><th>Name</th><th>Email</th><th>Packages</th><th>Status</th><th>Action</th></tr>
-              </thead>
+              <thead><tr><th>Name</th><th>Email</th><th>Packages</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
                 {customers.map((c) => (
                   <tr key={c[1]}>
@@ -288,9 +296,7 @@ function AdminDashboard({ user, onLogout }) {
             </div>
 
             <table className="customer-table">
-              <thead>
-                <tr><th>Package ID</th><th>Customer</th><th>Store</th><th>Status</th><th>Action</th></tr>
-              </thead>
+              <thead><tr><th>Package ID</th><th>Customer</th><th>Store</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
                 {packages.map((p) => (
                   <tr key={p[0]}>
@@ -323,10 +329,7 @@ function AdminDashboard({ user, onLogout }) {
               <button className="confirm-btn">Create New Dispatch</button>
             </div>
 
-            <img
-              src="https://images.unsplash.com/photo-1616432043562-3671ea2e5242?auto=format&fit=crop&w=900&q=80"
-              alt="Dispatch truck"
-            />
+            <img src="https://images.unsplash.com/photo-1616432043562-3671ea2e5242?auto=format&fit=crop&w=900&q=80" alt="Dispatch truck" />
           </section>
 
           <section className="queue-grid" style={{ marginBottom: "24px" }}>
@@ -343,17 +346,7 @@ function AdminDashboard({ user, onLogout }) {
             </div>
 
             <table className="customer-table">
-              <thead>
-                <tr>
-                  <th>Package ID</th>
-                  <th>Customer</th>
-                  <th>Destination</th>
-                  <th>Carrier</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-
+              <thead><tr><th>Package ID</th><th>Customer</th><th>Destination</th><th>Carrier</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
                 {dispatch.map((d) => (
                   <tr key={d[0]}>
