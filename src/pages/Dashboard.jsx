@@ -167,6 +167,19 @@ function Dashboard({ user, onLogout }) {
               <div className="stat-card purple"><div className="stat-icon">🚚</div><div><h3>{completedRequests.length}</h3><p>Completed Jobs</p></div></div>
             </section>
 
+            <section className="workflow-card" style={{ marginBottom: "24px" }}>
+              <div className="workflow-header">
+                <h2>Action Center</h2>
+                <p>Actions apply to selected package: <strong>#{currentPackage.id} - {currentPackage.store}</strong></p>
+              </div>
+
+              <div className="actions-section" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
+                <button onClick={() => setActivePage("consolidation")}><span>📦</span><div><strong>Request Consolidation</strong><p>Combine with other packages</p></div><b>›</b></button>
+                <button onClick={() => createRequest("Invoice Upload")}><span>📄</span><div><strong>Upload Invoice</strong><p>Upload store or purchase invoice</p></div><b>›</b></button>
+                <button onClick={() => createRequest("Hold / Store Package")}><span>⏸️</span><div><strong>Hold / Store</strong><p>Hold this package in warehouse</p></div><b>›</b></button>
+              </div>
+            </section>
+
             <section className="dashboard-grid">
               <div>
                 <div className="packages-card">
@@ -257,13 +270,6 @@ function Dashboard({ user, onLogout }) {
                   <div className="detail-row"><span>Received</span><strong>{currentPackage.received}</strong></div>
                   <div className="detail-row"><span>Storage Days</span><strong>{currentPackage.storageDays}</strong></div>
                   <div className="detail-row"><span>Location</span><strong>{currentPackage.location}</strong></div>
-                </div>
-
-                <div className="actions-section">
-                  <h4>Actions</h4>
-                  <button onClick={() => setActivePage("consolidation")}><span>📦</span><div><strong>Request Consolidation</strong><p>Combine with other packages</p></div><b>›</b></button>
-                  <button onClick={() => createRequest("Invoice Upload")}><span>📄</span><div><strong>Upload Invoice</strong><p>Upload store or purchase invoice</p></div><b>›</b></button>
-                  <button onClick={() => createRequest("Hold / Store Package")}><span>⏸️</span><div><strong>Hold / Store</strong><p>Hold this package in warehouse</p></div><b>›</b></button>
                 </div>
               </aside>
             </section>
