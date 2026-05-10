@@ -7,14 +7,32 @@ function AdminDashboard({ user, onLogout }) {
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [requestFilter, setRequestFilter] = useState("All")
   const [packageStatuses, setPackageStatuses] = useState({})
+  const [consolidationGroups, setConsolidationGroups] = useState([])
 
   useEffect(() => {
     setRequests(JSON.parse(localStorage.getItem("requests")) || [])
     setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
+    setConsolidationGroups(JSON.parse(localStorage.getItem("consolidationGroups")) || [])
   }, [])
 
+  const getPackagesFromRequest = (request) => {
+    if (request?.packageIds?.length) {
+      return request.packageIds.map((id, index) => ({
+        id,
+        store: request.packageStores?.[index] || "Unknown",
+      }))
+    }
+
+    return [
+      {
+        id: request?.packageId,
+        store: request?.packageStore,
+      },
+    ]
+  }
+
   const getNewPackageStatus = (type) => {
-    if (type.includes("Consolidation")) return "Ready for Dispatch"
+    if (type.includes("Consolidation")) return "Consolidated - In Storage"
     if (type.includes("Invoice")) return "Invoice Uploaded"
     if (type.includes("Dispatch")) return "Out for Delivery"
     if (type.includes("Hold")) return "In Storage"
@@ -23,15 +41,35 @@ function AdminDashboard({ user, onLogout }) {
 
   const updateRequestStatus = (id, status) => {
     const requestToUpdate = requests.find((r) => r.id === id)
+    const requestPackages = getPackagesFromRequest(requestToUpdate)
 
     const updatedRequests = requests.map((request) =>
       request.id === id ? { ...request, status } : request
     )
 
-    let updatedPackageStatuses = { ...packageStatuses }
+    const updatedPackageStatuses = { ...packageStatuses }
 
-    if (requestToUpdate?.packageId) {
-      updatedPackageStatuses[requestToUpdate.packageId] = getNewPackageStatus(requestToUpdate.type)
+    requestPackages.forEach((pkg) => {
+      if (pkg.id) {
+        updatedPackageStatuses[pkg.id] = getNewPackageStatus(requestToUpdate.type)
+      }
+    })
+
+    let updatedGroups = [...consolidationGroups]
+
+    if (requestToUpdate?.type.includes("Consolidation")) {
+      const newGroup = {
+        id: `CG-${Date.now().toString().slice(-5)}`,
+        requestId: requestToUpdate.id,
+        customer: requestToUpdate.customer,
+        packages: requestPackages,
+        status: "Consolidated - In Storage",
+        date: new Date().toLocaleString(),
+      }
+
+      updatedGroups = [newGroup, ...updatedGroups]
+      localStorage.setItem("consolidationGroups", JSON.stringify(updatedGroups))
+      setConsolidationGroups(updatedGroups)
     }
 
     setRequests(updatedRequests)
@@ -160,7 +198,13 @@ function AdminDashboard({ user, onLogout }) {
                 <div className="task-card" key={request.id}>
                   <div>
                     <h3>{request.type}</h3>
-                    <p>{request.customer} • Package #{request.packageId} • {request.date}</p>
+                    <p>
+                      {request.customer} •{" "}
+                      {request.packageIds?.length
+                        ? request.packageIds.map((id, index) => `#${id} ${request.packageStores?.[index] || ""}`).join(" • ")
+                        : `Package #${request.packageId}`}{" "}
+                      • {request.date}
+                    </p>
                   </div>
 
                   <div>
@@ -201,7 +245,21 @@ function AdminDashboard({ user, onLogout }) {
                   </div>
 
                   <div className="detail-row"><span>Email</span><strong>{selectedRequest.email}</strong></div>
-                  <div className="detail-row"><span>Package</span><strong>#{selectedRequest.packageId} - {selectedRequest.packageStore}</strong></div>
+
+                  <div className="detail-row">
+                    <span>Packages</span>
+                    <strong>
+                      {getPackagesFromRequest(selectedRequest).map((pkg) => `#${pkg.id} - ${pkg.store}`).join(" • ")}
+                    </strong>
+                  </div>
+
+                  {selectedRequest.type.includes("Consolidation") && (
+                    <div className="detail-row">
+                      <span>Requested Result</span>
+                      <strong>Consolidated - In Storage</strong>
+                    </div>
+                  )}
+
                   <div className="detail-row"><span>Date</span><strong>{selectedRequest.date}</strong></div>
                   <div className="detail-row"><span>Status</span><strong>{selectedRequest.status}</strong></div>
 
@@ -214,6 +272,21 @@ function AdminDashboard({ user, onLogout }) {
               )}
             </div>
           </section>
+
+          {consolidationGroups.length > 0 && (
+            <section className="card" style={{ marginTop: "24px" }}>
+              <h2>Consolidation Groups</h2>
+              {consolidationGroups.map((group) => (
+                <div className="task-card" key={group.id}>
+                  <div>
+                    <h3>{group.id}</h3>
+                    <p>{group.packages.map((pkg) => `${pkg.store} #${pkg.id}`).join(" • ")}</p>
+                  </div>
+                  <span className="status pending">{group.status}</span>
+                </div>
+              ))}
+            </section>
+          )}
         </main>
       )}
 
