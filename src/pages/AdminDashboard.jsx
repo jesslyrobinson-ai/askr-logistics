@@ -8,11 +8,24 @@ function AdminDashboard({ user, onLogout }) {
   const [requestFilter, setRequestFilter] = useState("All")
   const [packageStatuses, setPackageStatuses] = useState({})
   const [consolidationGroups, setConsolidationGroups] = useState([])
+  const [extraPackages, setExtraPackages] = useState([])
+  const [receivingPackage, setReceivingPackage] = useState(null)
+
+  const [receiveForm, setReceiveForm] = useState({
+    weight: "",
+    dimensions: "",
+    contents: "",
+    quantity: "",
+    value: "",
+    location: "",
+    notes: "",
+  })
 
   useEffect(() => {
     setRequests(JSON.parse(localStorage.getItem("requests")) || [])
     setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
     setConsolidationGroups(JSON.parse(localStorage.getItem("consolidationGroups")) || [])
+    setExtraPackages(JSON.parse(localStorage.getItem("extraPackages")) || [])
   }, [])
 
   const getPackagesFromRequest = (request) => {
@@ -22,13 +35,7 @@ function AdminDashboard({ user, onLogout }) {
         store: request.packageStores?.[index] || "Unknown",
       }))
     }
-
-    return [
-      {
-        id: request?.packageId,
-        store: request?.packageStore,
-      },
-    ]
+    return [{ id: request?.packageId, store: request?.packageStore }]
   }
 
   const getNewPackageStatus = (type) => {
@@ -36,7 +43,82 @@ function AdminDashboard({ user, onLogout }) {
     if (type.includes("Invoice")) return "Invoice Uploaded"
     if (type.includes("Dispatch")) return "Out for Delivery"
     if (type.includes("Hold")) return "In Storage"
+    if (type.includes("Extend Storage")) return "In Storage"
     return "Completed"
+  }
+
+  // 🔥 EMAIL FUNCTION (NEW)
+  const sendPackageEmail = (pkg) => {
+    const emailData = {
+      to: pkg.customerEmail || "customer@email.com",
+      subject: "Package Received at ASKR Warehouse",
+      body: `
+Hello ${pkg.customer || "Customer"},
+
+We received your package.
+
+From: ${pkg.store}
+Tracking#: ${pkg.tracking}
+Weight: ${pkg.weight}
+Dimensions: ${pkg.dimensions}
+Contents: ${pkg.contents}
+Value: ${pkg.value}
+
+Status: Received at ASKR Warehouse
+
+- ASKR Logistics
+      `,
+    }
+
+    console.log("EMAIL SENT:", emailData)
+  }
+
+  const openReceiveForm = (pkg) => {
+    setReceivingPackage(pkg)
+    setReceiveForm({
+      weight: "",
+      dimensions: "",
+      contents: "",
+      quantity: "",
+      value: "",
+      location: "",
+      notes: "",
+    })
+  }
+
+  const handleReceiveSubmit = () => {
+    if (!receivingPackage) return
+
+    const updatedPackages = extraPackages.map((pkg) =>
+      pkg.id === receivingPackage.id
+        ? {
+            ...pkg,
+            status: "Received",
+            received: new Date().toLocaleDateString(),
+            ...receiveForm,
+          }
+        : pkg
+    )
+
+    const updatedStatuses = {
+      ...packageStatuses,
+      [receivingPackage.id]: "Received",
+    }
+
+    localStorage.setItem("extraPackages", JSON.stringify(updatedPackages))
+    localStorage.setItem("packageStatuses", JSON.stringify(updatedStatuses))
+
+    setExtraPackages(updatedPackages)
+    setPackageStatuses(updatedStatuses)
+
+    const updatedPkg = updatedPackages.find(p => p.id === receivingPackage.id)
+
+    // 🔥 TRIGGER EMAIL HERE
+    sendPackageEmail(updatedPkg)
+
+    setReceivingPackage(null)
+
+    alert("Package received + email triggered")
   }
 
   const updateRequestStatus = (id, status) => {
@@ -50,50 +132,30 @@ function AdminDashboard({ user, onLogout }) {
     const updatedPackageStatuses = { ...packageStatuses }
 
     requestPackages.forEach((pkg) => {
-      if (pkg.id) {
-        updatedPackageStatuses[pkg.id] = getNewPackageStatus(requestToUpdate.type)
-      }
+      if (pkg.id) updatedPackageStatuses[pkg.id] = getNewPackageStatus(requestToUpdate.type)
     })
-
-    let updatedGroups = [...consolidationGroups]
-
-    if (requestToUpdate?.type.includes("Consolidation")) {
-      const newGroup = {
-        id: `CG-${Date.now().toString().slice(-5)}`,
-        requestId: requestToUpdate.id,
-        customer: requestToUpdate.customer,
-        packages: requestPackages,
-        status: "Consolidated - In Storage",
-        date: new Date().toLocaleString(),
-      }
-
-      updatedGroups = [newGroup, ...updatedGroups]
-      localStorage.setItem("consolidationGroups", JSON.stringify(updatedGroups))
-      setConsolidationGroups(updatedGroups)
-    }
 
     setRequests(updatedRequests)
     setPackageStatuses(updatedPackageStatuses)
 
     localStorage.setItem("requests", JSON.stringify(updatedRequests))
     localStorage.setItem("packageStatuses", JSON.stringify(updatedPackageStatuses))
-
-    if (selectedRequest?.id === id) {
-      setSelectedRequest({ ...selectedRequest, status })
-    }
   }
 
-  const pendingRequests = requests.filter((r) => r.status === "Pending")
+  const incomingPackages = extraPackages.filter(
+    (pkg) => (packageStatuses[pkg.id] || pkg.status) === "Incoming"
+  )
 
-  const filteredRequests =
+  const pendingRequests = requests.filter((r) => r.status === "Pending")
+    const filteredRequests =
     requestFilter === "All"
       ? requests
       : requests.filter((request) => request.status === requestFilter)
 
   const queueCards = [
+    { title: "Incoming Packages", count: incomingPackages.length, icon: "🛬" },
     { title: "Orders to Ship", count: 3, icon: "🚚" },
     { title: "Late Orders", count: 3, icon: "⏰" },
-    { title: "Open Shipments", count: 0, icon: "📦" },
     { title: "Ready for Dispatch", count: 5, icon: "✅" },
     { title: "Missing Invoices", count: 2, icon: "🧾" },
     { title: "Pending Customer Requests", count: pendingRequests.length, icon: "📩" },
@@ -108,19 +170,21 @@ function AdminDashboard({ user, onLogout }) {
     ["LT", "Lisa Thompson", "lisa@email.com", 7, "Active"],
   ]
 
-  const packages = [
+  const basePackages = [
     ["PKG-12345", "Jessly Robinson", "Amazon", packageStatuses["12345"] || "Missing Invoice"],
     ["PKG-67890", "Jessly Robinson", "Nike", packageStatuses["67890"] || "In Storage"],
     ["PKG-55219", "Robert Parker", "Apple", "Ready for Dispatch"],
     ["PKG-33091", "Lisa Thompson", "Shein", "New Arrival"],
   ]
 
-  const dispatch = [
-    ["PKG-2025-0421", "Jessly Robinson", "Miami, FL", "UPS", "Ready for Dispatch"],
-    ["PKG-2025-0420", "Andrew Seymour", "Fort Lauderdale, FL", "FedEx", "Awaiting Carrier"],
-    ["PKG-2025-0419", "Robert Parker", "Orlando, FL", "DHL", "Out for Delivery"],
-    ["PKG-2025-0418", "Lisa Thompson", "Miami Beach, FL", "UPS", "Out for Delivery"],
-    ["PKG-2025-0417", "David Chen", "Hollywood, FL", "FedEx", "Delivered"],
+  const packages = [
+    ...basePackages,
+    ...extraPackages.map((pkg) => [
+      `PKG-${pkg.id}`,
+      pkg.customer || "Customer",
+      pkg.store,
+      packageStatuses[pkg.id] || pkg.status,
+    ]),
   ]
 
   return (
@@ -132,11 +196,11 @@ function AdminDashboard({ user, onLogout }) {
         </div>
 
         <p style={{ marginTop: "20px", fontWeight: "600" }}>Admin: {user?.name}</p>
-
         <button onClick={onLogout} className="confirm-btn">Logout</button>
 
         <nav>
           <button className={activePage === "overview" ? "active" : ""} onClick={() => setActivePage("overview")}>Overview</button>
+          <button className={activePage === "incoming" ? "active" : ""} onClick={() => setActivePage("incoming")}>Incoming</button>
           <button className={activePage === "customers" ? "active" : ""} onClick={() => setActivePage("customers")}>Customers</button>
           <button className={activePage === "packages" ? "active" : ""} onClick={() => setActivePage("packages")}>Packages</button>
           <button className={activePage === "dispatch" ? "active" : ""} onClick={() => setActivePage("dispatch")}>Dispatch</button>
@@ -153,14 +217,6 @@ function AdminDashboard({ user, onLogout }) {
             </div>
           </div>
 
-          <section className="admin-hero">
-            <div>
-              <h2>Operations Queue</h2>
-              <p>Everything your staff needs to handle next.</p>
-            </div>
-            <img src="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=900&q=80" alt="Warehouse" />
-          </section>
-
           <section className="queue-section">
             <h2>Pending Actions</h2>
             <div className="queue-grid">
@@ -173,118 +229,88 @@ function AdminDashboard({ user, onLogout }) {
               ))}
             </div>
           </section>
+        </main>
+      )}
 
-          <section className="admin-grid">
-            <div className="card">
-              <div className="topbar">
-                <h2>Customer Requests</h2>
-                <div>
-                  <button className="confirm-btn" onClick={() => setRequestFilter("All")}>All</button>
-                  <button className="confirm-btn" style={{ marginLeft: "8px" }} onClick={() => setRequestFilter("Pending")}>Pending</button>
-                  <button className="confirm-btn" style={{ marginLeft: "8px" }} onClick={() => setRequestFilter("Completed")}>Completed</button>
-                </div>
-              </div>
+      {activePage === "incoming" && (
+        <main className="main-content">
+          <div className="topbar">
+            <div>
+              <h1>Incoming Packages</h1>
+              <p>Receive packages and trigger customer arrival emails.</p>
+            </div>
+          </div>
 
-              {filteredRequests.length === 0 && (
-                <div className="task-card">
-                  <div>
-                    <h3>No requests</h3>
-                    <p>Customer requests will appear here.</p>
-                  </div>
-                </div>
-              )}
-
-              {filteredRequests.map((request) => (
-                <div className="task-card" key={request.id}>
-                  <div>
-                    <h3>{request.type}</h3>
-                    <p>
-                      {request.customer} •{" "}
-                      {request.packageIds?.length
-                        ? request.packageIds.map((id, index) => `#${id} ${request.packageStores?.[index] || ""}`).join(" • ")
-                        : `Package #${request.packageId}`}{" "}
-                      • {request.date}
-                    </p>
-                  </div>
-
-                  <div>
-                    <span className={request.status === "Completed" ? "status success" : "status pending"}>
-                      {request.status}
-                    </span>
-
-                    <button className="confirm-btn" style={{ marginLeft: "10px" }} onClick={() => setSelectedRequest(request)}>
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              ))}
+          <section className="card">
+            <div className="topbar">
+              <h2>Master Incoming Tracker</h2>
+              <input className="search-input" placeholder="Search tracking number..." />
             </div>
 
-            <div className="card">
-              <h2>Request Details</h2>
+            <table className="customer-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Package</th>
+                  <th>Store</th>
+                  <th>Tracking</th>
+                  <th>ETA</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
 
-              {!selectedRequest && (
-                <div className="task-card">
-                  <div>
-                    <h3>Select a request</h3>
-                    <p>Click View Details to manage a customer request.</p>
-                  </div>
-                </div>
-              )}
+              <tbody>
+                {extraPackages.length === 0 && (
+                  <tr><td colSpan="7">No incoming packages yet.</td></tr>
+                )}
 
-              {selectedRequest && (
-                <>
-                  <div className="task-card">
-                    <div>
-                      <h3>{selectedRequest.type}</h3>
-                      <p>{selectedRequest.customer}</p>
-                    </div>
-                    <span className={selectedRequest.status === "Completed" ? "status success" : "status pending"}>
-                      {selectedRequest.status}
-                    </span>
-                  </div>
+                {extraPackages.map((pkg) => {
+                  const status = packageStatuses[pkg.id] || pkg.status
 
-                  <div className="detail-row"><span>Email</span><strong>{selectedRequest.email}</strong></div>
-
-                  <div className="detail-row">
-                    <span>Packages</span>
-                    <strong>
-                      {getPackagesFromRequest(selectedRequest).map((pkg) => `#${pkg.id} - ${pkg.store}`).join(" • ")}
-                    </strong>
-                  </div>
-
-                  {selectedRequest.type.includes("Consolidation") && (
-                    <div className="detail-row">
-                      <span>Requested Result</span>
-                      <strong>Consolidated - In Storage</strong>
-                    </div>
-                  )}
-
-                  <div className="detail-row"><span>Date</span><strong>{selectedRequest.date}</strong></div>
-                  <div className="detail-row"><span>Status</span><strong>{selectedRequest.status}</strong></div>
-
-                  {selectedRequest.status === "Pending" && (
-                    <button className="confirm-btn" style={{ marginTop: "16px" }} onClick={() => updateRequestStatus(selectedRequest.id, "Completed")}>
-                      Mark Done
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                  return (
+                    <tr key={pkg.id}>
+                      <td>{pkg.customer || "Customer"}</td>
+                      <td><strong>PKG-{pkg.id}</strong></td>
+                      <td>{pkg.store}</td>
+                      <td>{pkg.tracking}</td>
+                      <td>{pkg.expectedDate || "Not provided"}</td>
+                      <td><span className={status === "Received" ? "status success" : "status pending"}>{status}</span></td>
+                      <td>
+                        {status === "Incoming" ? (
+                          <button className="confirm-btn" onClick={() => openReceiveForm(pkg)}>
+                            Receive Package
+                          </button>
+                        ) : (
+                          <button className="confirm-btn" disabled>Received</button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </section>
 
-          {consolidationGroups.length > 0 && (
+          {receivingPackage && (
             <section className="card" style={{ marginTop: "24px" }}>
-              <h2>Consolidation Groups</h2>
-              {consolidationGroups.map((group) => (
-                <div className="task-card" key={group.id}>
-                  <div>
-                    <h3>{group.id}</h3>
-                    <p>{group.packages.map((pkg) => `${pkg.store} #${pkg.id}`).join(" • ")}</p>
-                  </div>
-                  <span className="status pending">{group.status}</span>
+              <h2>Receive Package: PKG-{receivingPackage.id}</h2>
+              <p>{receivingPackage.customer || "Customer"} • {receivingPackage.store} • {receivingPackage.tracking}</p>
+
+              <div className="workflow-body">
+                <input placeholder="Weight e.g. 0.2 lbs" value={receiveForm.weight} onChange={(e) => setReceiveForm({ ...receiveForm, weight: e.target.value })} />
+                <input placeholder="Dimensions e.g. 10 x 8 x 6 in" value={receiveForm.dimensions} onChange={(e) => setReceiveForm({ ...receiveForm, dimensions: e.target.value })} />
+                <input placeholder="Contents e.g. Video Games" value={receiveForm.contents} onChange={(e) => setReceiveForm({ ...receiveForm, contents: e.target.value })} />
+                <input placeholder="Quantity e.g. 1 PCS" value={receiveForm.quantity} onChange={(e) => setReceiveForm({ ...receiveForm, quantity: e.target.value })} />
+                <input placeholder="Value e.g. 38.35" value={receiveForm.value} onChange={(e) => setReceiveForm({ ...receiveForm, value: e.target.value })} />
+                <input placeholder="Shelf Location e.g. A-12-03" value={receiveForm.location} onChange={(e) => setReceiveForm({ ...receiveForm, location: e.target.value })} />
+                <textarea placeholder="Condition notes" value={receiveForm.notes} onChange={(e) => setReceiveForm({ ...receiveForm, notes: e.target.value })} />
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button className="confirm-btn" onClick={handleReceiveSubmit}>Confirm Receive + Email</button>
+                  <button className="confirm-btn" onClick={() => setReceivingPackage(null)}>Cancel</button>
                 </div>
-              ))}
+              </div>
             </section>
           )}
         </main>
@@ -293,33 +319,10 @@ function AdminDashboard({ user, onLogout }) {
       {activePage === "customers" && (
         <main className="main-content">
           <div className="topbar">
-            <div>
-              <h1>Customers</h1>
-              <p>Manage your customers, view their activity, and track their shipping history.</p>
-            </div>
+            <div><h1>Customers</h1><p>Manage customers and activity.</p></div>
           </div>
 
-          <section className="admin-hero">
-            <div>
-              <h2>Customer Management</h2>
-              <p>View customer activity and manage all requests from one place.</p>
-            </div>
-            <img src="https://images.unsplash.com/photo-1586528116493-a029325540fa?auto=format&fit=crop&w=900&q=80" alt="Warehouse shelves" />
-          </section>
-
-          <section className="queue-grid" style={{ marginBottom: "24px" }}>
-            <div className="queue-card"><div className="queue-icon">👥</div><h3>1,248</h3><p>Total Customers</p></div>
-            <div className="queue-card"><div className="queue-icon">✅</div><h3>983</h3><p>Active Customers</p></div>
-            <div className="queue-card"><div className="queue-icon">⏱️</div><h3>{pendingRequests.length}</h3><p>Pending Requests</p></div>
-            <div className="queue-card"><div className="queue-icon">📦</div><h3>18</h3><p>Package Issues</p></div>
-          </section>
-
           <section className="card">
-            <div className="topbar">
-              <h2>Customer List</h2>
-              <input className="search-input" placeholder="Search customers..." />
-            </div>
-
             <table className="customer-table">
               <thead><tr><th>Name</th><th>Email</th><th>Packages</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
@@ -341,33 +344,10 @@ function AdminDashboard({ user, onLogout }) {
       {activePage === "packages" && (
         <main className="main-content">
           <div className="topbar">
-            <div>
-              <h1>Packages</h1>
-              <p>Track package flow from arrival to dispatch.</p>
-            </div>
+            <div><h1>Packages</h1><p>Track package flow from arrival to dispatch.</p></div>
           </div>
 
-          <section className="admin-hero">
-            <div>
-              <h2>Package Flow</h2>
-              <p>Manage arrivals, invoices, consolidation, and dispatch readiness.</p>
-            </div>
-            <img src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=900&q=80" alt="Delivery truck" />
-          </section>
-
-          <section className="queue-grid" style={{ marginBottom: "24px" }}>
-            <div className="queue-card"><div className="queue-icon">📥</div><h3>14</h3><p>New Arrivals</p></div>
-            <div className="queue-card"><div className="queue-icon">🧾</div><h3>2</h3><p>Missing Invoice</p></div>
-            <div className="queue-card"><div className="queue-icon">📦</div><h3>{pendingRequests.length}</h3><p>Requests</p></div>
-            <div className="queue-card"><div className="queue-icon">🚚</div><h3>5</h3><p>Ready Dispatch</p></div>
-          </section>
-
           <section className="card">
-            <div className="topbar">
-              <h2>Package List</h2>
-              <input className="search-input" placeholder="Search packages..." />
-            </div>
-
             <table className="customer-table">
               <thead><tr><th>Package ID</th><th>Customer</th><th>Store</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
@@ -389,51 +369,8 @@ function AdminDashboard({ user, onLogout }) {
       {activePage === "dispatch" && (
         <main className="main-content">
           <div className="topbar">
-            <div>
-              <h1>Dispatch</h1>
-              <p>Manage ready shipments, carrier assignments, and proof of dispatch.</p>
-            </div>
+            <div><h1>Dispatch</h1><p>Manage ready shipments and carrier assignments.</p></div>
           </div>
-
-          <section className="admin-hero">
-            <div>
-              <h2>Dispatch Control</h2>
-              <p>Monitor shipment readiness, assign trusted carriers, and keep delivery flow organized.</p>
-              <button className="confirm-btn">Create New Dispatch</button>
-            </div>
-
-            <img src="https://images.unsplash.com/photo-1616432043562-3671ea2e5242?auto=format&fit=crop&w=900&q=80" alt="Dispatch truck" />
-          </section>
-
-          <section className="queue-grid" style={{ marginBottom: "24px" }}>
-            <div className="queue-card"><div className="queue-icon">📦</div><h3>28</h3><p>Ready for Dispatch</p></div>
-            <div className="queue-card"><div className="queue-icon">⏱️</div><h3>16</h3><p>Awaiting Carrier</p></div>
-            <div className="queue-card"><div className="queue-icon">🚚</div><h3>54</h3><p>Out for Delivery</p></div>
-            <div className="queue-card"><div className="queue-icon">✅</div><h3>87</h3><p>Delivered Today</p></div>
-          </section>
-
-          <section className="card">
-            <div className="topbar">
-              <h2>Dispatch Queue</h2>
-              <input className="search-input" placeholder="Search dispatch..." />
-            </div>
-
-            <table className="customer-table">
-              <thead><tr><th>Package ID</th><th>Customer</th><th>Destination</th><th>Carrier</th><th>Status</th><th>Action</th></tr></thead>
-              <tbody>
-                {dispatch.map((d) => (
-                  <tr key={d[0]}>
-                    <td><strong>{d[0]}</strong></td>
-                    <td>{d[1]}</td>
-                    <td>{d[2]}</td>
-                    <td>{d[3]}</td>
-                    <td><span className={d[4] === "Delivered" ? "status success" : "status pending"}>{d[4]}</span></td>
-                    <td><button className="confirm-btn">View Details</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
         </main>
       )}
     </div>
