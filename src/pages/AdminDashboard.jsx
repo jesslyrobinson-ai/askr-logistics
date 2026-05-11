@@ -22,7 +22,7 @@ function AdminDashboard({ user, onLogout }) {
     notes: "",
   })
 
-  const SERVICE_ID = "service_v80lqvj"
+  const SERVICE_ID = "service_dtkuhqv"
   const TEMPLATE_ID = "template_01d4wxw"
   const PUBLIC_KEY = "FvjojDypw5uHHRweU"
 
