@@ -8,6 +8,11 @@ function Dashboard({ user, onLogout }) {
   const [packageStatuses, setPackageStatuses] = useState({})
   const [extraPackages, setExtraPackages] = useState([])
   const [selectedForConsolidation, setSelectedForConsolidation] = useState([])
+  const [incomingForm, setIncomingForm] = useState({
+    store: "",
+    tracking: "",
+    expectedDate: "",
+  })
 
   useEffect(() => {
     setRequests(JSON.parse(localStorage.getItem("requests")) || [])
@@ -16,8 +21,30 @@ function Dashboard({ user, onLogout }) {
   }, [])
 
   const basePackages = [
-    { id: "12345", store: "Amazon", tracking: "1Z999AA10123456784", status: "Received", weight: "3.2 lbs", dimensions: "12 x 10 x 8 in", received: "May 20, 2025", storageDays: "13 days", location: "A-12-03" },
-    { id: "67890", store: "Nike", tracking: "9400111206213890000000", status: "In Storage", weight: "5.1 lbs", dimensions: "16 x 12 x 10 in", received: "May 19, 2025", storageDays: "12 days", location: "B-08-11" },
+    {
+      id: "12345",
+      store: "Amazon",
+      tracking: "1Z999AA10123456784",
+      status: "Received",
+      weight: "3.2 lbs",
+      dimensions: "12 x 10 x 8 in",
+      received: "May 20, 2025",
+      storageDays: "13 days",
+      location: "A-12-03",
+      expectedDate: "May 20, 2025",
+    },
+    {
+      id: "67890",
+      store: "Nike",
+      tracking: "9400111206213890000000",
+      status: "In Storage",
+      weight: "5.1 lbs",
+      dimensions: "16 x 12 x 10 in",
+      received: "May 19, 2025",
+      storageDays: "12 days",
+      location: "B-08-11",
+      expectedDate: "May 19, 2025",
+    },
   ]
 
   const packages = [...basePackages, ...extraPackages].map((pkg) => ({
@@ -32,20 +59,50 @@ function Dashboard({ user, onLogout }) {
   const consolidationGroups = JSON.parse(localStorage.getItem("consolidationGroups")) || []
 
   const receivedCount = packages.filter((p) => p.status === "Received").length
+  const incomingCount = packages.filter((p) => p.status === "Incoming").length
   const storageCount = packages.filter((p) => p.status.includes("Storage") || p.status === "In Storage").length
   const readyCount = packages.filter((p) => p.status === "Ready for Dispatch").length
+  const storagePendingCount = packages.filter((p) => p.status === "Storage Pending").length
+  const consolidatedStorageCount = packages.filter((p) => p.status === "Consolidated - In Storage").length
+
+  const addIncomingPackage = () => {
+    if (!incomingForm.store || !incomingForm.tracking) {
+      alert("Add store name and tracking number")
+      return
+    }
+
+    const newPackage = {
+      id: String(Date.now()).slice(-5),
+      store: incomingForm.store,
+      tracking: incomingForm.tracking,
+      status: "Incoming",
+      weight: "Pending",
+      dimensions: "Pending",
+      received: "Not received yet",
+      storageDays: "0 days",
+      location: "Awaiting arrival",
+      expectedDate: incomingForm.expectedDate || "Not provided",
+    }
+
+    const updated = [newPackage, ...extraPackages]
+    localStorage.setItem("extraPackages", JSON.stringify(updated))
+    setExtraPackages(updated)
+    setSelectedPackage(newPackage.id)
+    setIncomingForm({ store: "", tracking: "", expectedDate: "" })
+  }
 
   const simulateIncomingPackage = () => {
     const newPackage = {
       id: String(Date.now()).slice(-5),
       store: ["Shein", "Zara", "Amazon", "Nike"][Math.floor(Math.random() * 4)],
       tracking: "SIM-" + Date.now(),
-      status: "Received",
-      weight: "2.4 lbs",
-      dimensions: "10 x 8 x 6 in",
-      received: new Date().toLocaleDateString(),
+      status: "Incoming",
+      weight: "Pending",
+      dimensions: "Pending",
+      received: "Not received yet",
       storageDays: "0 days",
-      location: "NEW-" + Math.floor(Math.random() * 20),
+      location: "Awaiting arrival",
+      expectedDate: new Date().toLocaleDateString(),
     }
 
     const updated = [newPackage, ...extraPackages]
@@ -77,6 +134,7 @@ function Dashboard({ user, onLogout }) {
         type.includes("Consolidation") ? "Consolidation Pending" :
         type.includes("Invoice") ? "Invoice Pending" :
         type.includes("Dispatch") ? "Dispatch Pending" :
+        type.includes("Extend Storage") ? "Storage Pending" :
         type.includes("Hold") ? "Storage Pending" :
         "Request Pending"
     })
@@ -118,6 +176,18 @@ function Dashboard({ user, onLogout }) {
     setRequests(updated)
   }
 
+  const getJourneyStep = (status) => {
+    if (status === "Incoming") return 1
+    if (status === "Received") return 2
+    if (status.includes("Storage") || status === "In Storage") return 3
+    if (status.includes("Consolidated")) return 4
+    if (status === "Ready for Dispatch") return 5
+    if (status.includes("Dispatch") || status === "Out for Delivery") return 6
+    return 1
+  }
+
+  const journeyStep = getJourneyStep(currentPackage?.status || "Incoming")
+
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
@@ -137,6 +207,7 @@ function Dashboard({ user, onLogout }) {
         <nav>
           <a className={activePage === "packages" ? "active" : ""} onClick={() => setActivePage("packages")}>Packages</a>
           <a className={activePage === "consolidation" ? "active" : ""} onClick={() => setActivePage("consolidation")}>Consolidation</a>
+          <a className={activePage === "storage" ? "active" : ""} onClick={() => setActivePage("storage")}>My Storage</a>
           <a className={activePage === "dispatch" ? "active" : ""} onClick={() => setActivePage("dispatch")}>Dispatch</a>
           <a className={activePage === "invoices" ? "active" : ""} onClick={() => setActivePage("invoices")}>Invoices</a>
           <a className={activePage === "history" ? "active" : ""} onClick={() => setActivePage("history")}>History</a>
@@ -151,23 +222,89 @@ function Dashboard({ user, onLogout }) {
             <header className="dashboard-header">
               <div>
                 <h1>My Packages</h1>
-                <p>Manage received packages, consolidation, storage, invoices, and dispatch requests.</p>
+                <p>Track packages from incoming shipment to storage, consolidation, and dispatch.</p>
               </div>
 
               <div style={{ display: "flex", gap: "10px" }}>
                 <button className="primary-btn" onClick={() => createRequest("General Package Request")}>New Request</button>
-                <button className="primary-btn" onClick={simulateIncomingPackage}>+ Incoming Package</button>
+                <button className="primary-btn" onClick={simulateIncomingPackage}>+ Sim Incoming</button>
               </div>
             </header>
 
             <section className="stats-grid">
-              <div className="stat-card blue"><div className="stat-icon">📦</div><div><h3>{receivedCount}</h3><p>Packages Received</p></div></div>
-              <div className="stat-card green"><div className="stat-icon">🏬</div><div><h3>{storageCount}</h3><p>In Storage</p></div></div>
-              <div className="stat-card orange"><div className="stat-icon">⬇️</div><div><h3>{readyCount}</h3><p>Ready for Dispatch</p></div></div>
-              <div className="stat-card purple"><div className="stat-icon">🚚</div><div><h3>{completedRequests.length}</h3><p>Completed Jobs</p></div></div>
+              <div className="stat-card blue"><div className="stat-icon">🛬</div><div><h3>{incomingCount}</h3><p>Incoming</p></div></div>
+              <div className="stat-card green"><div className="stat-icon">📦</div><div><h3>{receivedCount}</h3><p>Received</p></div></div>
+              <div className="stat-card orange"><div className="stat-icon">🏬</div><div><h3>{storageCount}</h3><p>In Storage</p></div></div>
+              <div className="stat-card purple"><div className="stat-icon">🚚</div><div><h3>{readyCount}</h3><p>Ready Dispatch</p></div></div>
             </section>
 
             <section className="workflow-card" style={{ marginBottom: "24px" }}>
+              <div className="workflow-header">
+                <h2>Package Journey Tracker</h2>
+                <p>Currently tracking: <strong>#{currentPackage.id} - {currentPackage.store}</strong></p>
+              </div>
+
+              <div className="workflow-body">
+                <div className="task-card">
+                  <div>
+                    <h3>{currentPackage.store}</h3>
+                    <p>Tracking: {currentPackage.tracking}</p>
+                    <p>Status: {currentPackage.status}</p>
+                  </div>
+                  <span className="status pending">{currentPackage.status}</span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px", marginTop: "14px" }}>
+                  {["Incoming", "Received", "Storage", "Consolidated", "Ready", "Dispatched"].map((step, index) => (
+                    <div
+                      key={step}
+                      style={{
+                        padding: "12px",
+                        borderRadius: "12px",
+                        textAlign: "center",
+                        fontWeight: "700",
+                        background: journeyStep >= index + 1 ? "#dcfce7" : "#f1f5f9",
+                        color: journeyStep >= index + 1 ? "#166534" : "#64748b",
+                      }}
+                    >
+                      {step}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="workflow-card" style={{ marginBottom: "24px" }}>
+              <div className="workflow-header">
+                <h2>Add Incoming Package</h2>
+                <p>Use this when you send items to your ASKR address.</p>
+              </div>
+
+              <div className="workflow-body">
+                <input
+                  placeholder="Store name e.g. Amazon, Nike, Shein"
+                  value={incomingForm.store}
+                  onChange={(e) => setIncomingForm({ ...incomingForm, store: e.target.value })}
+                />
+
+                <input
+                  placeholder="Tracking number"
+                  value={incomingForm.tracking}
+                  onChange={(e) => setIncomingForm({ ...incomingForm, tracking: e.target.value })}
+                />
+
+                <input
+                  type="date"
+                  value={incomingForm.expectedDate}
+                  onChange={(e) => setIncomingForm({ ...incomingForm, expectedDate: e.target.value })}
+                />
+
+                <button className="confirm-btn" onClick={addIncomingPackage}>
+                  Add Incoming Package
+                </button>
+              </div>
+            </section>
+                        <section className="workflow-card" style={{ marginBottom: "24px" }}>
               <div className="workflow-header">
                 <h2>Action Center</h2>
                 <p>Actions apply to selected package: <strong>#{currentPackage.id} - {currentPackage.store}</strong></p>
@@ -190,7 +327,7 @@ function Dashboard({ user, onLogout }) {
 
                   <table>
                     <thead>
-                      <tr><th>Package</th><th>Store</th><th>Status</th><th>Weight</th><th>Received</th><th>Storage</th></tr>
+                      <tr><th>Package</th><th>Store</th><th>Status</th><th>Tracking</th><th>Expected</th><th>Storage</th></tr>
                     </thead>
                     <tbody>
                       {packages.map((pkg) => (
@@ -198,35 +335,14 @@ function Dashboard({ user, onLogout }) {
                           <td>#{pkg.id}</td>
                           <td>{pkg.store}</td>
                           <td><span className="status-badge storage">{pkg.status}</span></td>
-                          <td>{pkg.weight}</td>
-                          <td>{pkg.received}</td>
+                          <td>{pkg.tracking}</td>
+                          <td>{pkg.expectedDate || pkg.received}</td>
                           <td>{pkg.storageDays}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-
-                {consolidationGroups.length > 0 && (
-                  <section className="workflow-card">
-                    <div className="workflow-header">
-                      <h2>Consolidation Groups</h2>
-                      <p>Packages that have been consolidated together.</p>
-                    </div>
-
-                    <div className="workflow-body">
-                      {consolidationGroups.map((group) => (
-                        <div className="task-card" key={group.id}>
-                          <div>
-                            <h3>{group.id}</h3>
-                            <p>{group.packages.map((p) => `${p.store} #${p.id}`).join(" • ")}</p>
-                          </div>
-                          <span className="status pending">{group.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
 
                 {activeRequests.length > 0 && (
                   <section className="workflow-card">
@@ -267,11 +383,81 @@ function Dashboard({ user, onLogout }) {
                   <div className="detail-row"><span>Status</span><strong>{currentPackage.status}</strong></div>
                   <div className="detail-row"><span>Weight</span><strong>{currentPackage.weight}</strong></div>
                   <div className="detail-row"><span>Dimensions</span><strong>{currentPackage.dimensions}</strong></div>
+                  <div className="detail-row"><span>Expected</span><strong>{currentPackage.expectedDate}</strong></div>
                   <div className="detail-row"><span>Received</span><strong>{currentPackage.received}</strong></div>
-                  <div className="detail-row"><span>Storage Days</span><strong>{currentPackage.storageDays}</strong></div>
                   <div className="detail-row"><span>Location</span><strong>{currentPackage.location}</strong></div>
                 </div>
               </aside>
+            </section>
+          </>
+        )}
+
+        {activePage === "storage" && (
+          <>
+            <header className="dashboard-header">
+              <div>
+                <h1>My Storage</h1>
+                <p>Manage stored packages, consolidated packages, and storage requests.</p>
+              </div>
+            </header>
+
+            <section className="stats-grid">
+              <div className="stat-card green"><div className="stat-icon">🏬</div><div><h3>{storageCount}</h3><p>In Storage</p></div></div>
+              <div className="stat-card orange"><div className="stat-icon">⏳</div><div><h3>{storagePendingCount}</h3><p>Storage Pending</p></div></div>
+              <div className="stat-card blue"><div className="stat-icon">📦</div><div><h3>{consolidatedStorageCount}</h3><p>Consolidated - In Storage</p></div></div>
+              <div className="stat-card purple"><div className="stat-icon">⚠️</div><div><h3>0</h3><p>Storage Expiring</p></div></div>
+            </section>
+
+            {consolidationGroups.length > 0 && (
+              <section className="workflow-card">
+                <div className="workflow-header">
+                  <h2>Consolidated Storage Groups</h2>
+                  <p>Each group shows the individual packages consolidated together.</p>
+                </div>
+
+                <div className="workflow-body">
+                  {consolidationGroups.map((group) => (
+                    <div className="task-card" key={group.id}>
+                      <div>
+                        <h3>{group.id}</h3>
+                        <p>{group.packages.map((p) => `${p.store} #${p.id}`).join(" • ")}</p>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <span className="status pending">{group.status}</span>
+                        <button className="confirm-btn" onClick={() => createRequest("Dispatch Request", group.packages)}>Request Dispatch</button>
+                        <button className="confirm-btn" onClick={() => createRequest("Extend Storage", group.packages)}>Extend Storage</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="workflow-card">
+              <div className="workflow-header">
+                <h2>Stored Packages</h2>
+                <p>All individual packages currently in a storage status.</p>
+              </div>
+
+              <div className="workflow-body">
+                {packages
+                  .filter((pkg) => pkg.status.includes("Storage") || pkg.status === "In Storage")
+                  .map((pkg) => (
+                    <div className="task-card" key={pkg.id}>
+                      <div>
+                        <h3>#{pkg.id} - {pkg.store}</h3>
+                        <p>{pkg.status} • {pkg.weight} • {pkg.storageDays}</p>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button className="confirm-btn" onClick={() => createRequest("Dispatch Request", [pkg])}>Request Dispatch</button>
+                        <button className="confirm-btn" onClick={() => createRequest("Extend Storage", [pkg])}>Extend Storage</button>
+                        <button className="confirm-btn" onClick={() => setActivePage("consolidation")}>Request Consolidation</button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </section>
           </>
         )}
