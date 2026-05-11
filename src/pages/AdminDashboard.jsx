@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import emailjs from "@emailjs/browser"
 import "../App.css"
 
 function AdminDashboard({ user, onLogout }) {
@@ -21,6 +22,10 @@ function AdminDashboard({ user, onLogout }) {
     notes: "",
   })
 
+  const SERVICE_ID = "service_v80lqvj"
+  const TEMPLATE_ID = "template_01d4wxw"
+  const PUBLIC_KEY = "FvjojDypw5uHHRweU"
+
   useEffect(() => {
     setRequests(JSON.parse(localStorage.getItem("requests")) || [])
     setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
@@ -28,49 +33,22 @@ function AdminDashboard({ user, onLogout }) {
     setExtraPackages(JSON.parse(localStorage.getItem("extraPackages")) || [])
   }, [])
 
-  const getPackagesFromRequest = (request) => {
-    if (request?.packageIds?.length) {
-      return request.packageIds.map((id, index) => ({
-        id,
-        store: request.packageStores?.[index] || "Unknown",
-      }))
-    }
-    return [{ id: request?.packageId, store: request?.packageStore }]
-  }
-
-  const getNewPackageStatus = (type) => {
-    if (type.includes("Consolidation")) return "Consolidated - In Storage"
-    if (type.includes("Invoice")) return "Invoice Uploaded"
-    if (type.includes("Dispatch")) return "Out for Delivery"
-    if (type.includes("Hold")) return "In Storage"
-    if (type.includes("Extend Storage")) return "In Storage"
-    return "Completed"
-  }
-
-  // 🔥 EMAIL FUNCTION (NEW)
-  const sendPackageEmail = (pkg) => {
-    const emailData = {
-      to: pkg.customerEmail || "customer@email.com",
-      subject: "Package Received at ASKR Warehouse",
-      body: `
-Hello ${pkg.customer || "Customer"},
-
-We received your package.
-
-From: ${pkg.store}
-Tracking#: ${pkg.tracking}
-Weight: ${pkg.weight}
-Dimensions: ${pkg.dimensions}
-Contents: ${pkg.contents}
-Value: ${pkg.value}
-
-Status: Received at ASKR Warehouse
-
-- ASKR Logistics
-      `,
+  const sendPackageEmail = async (pkg) => {
+    const templateParams = {
+      to_email: pkg.email || pkg.customerEmail || "jesslyrobinson@gmail.com",
+      customer_name: pkg.customer || "Customer",
+      store: pkg.store || "Not provided",
+      tracking: pkg.tracking || "Not provided",
+      weight: pkg.weight || "Not provided",
+      dimensions: pkg.dimensions || "Not provided",
+      contents: pkg.contents || "Not provided",
+      value: pkg.value || "Not provided",
+      location: pkg.location || "Not provided",
+      name: "ASKR Logistics",
+      email: "askrlogistics@gmail.com",
     }
 
-    console.log("EMAIL SENT:", emailData)
+    return emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY)
   }
 
   const openReceiveForm = (pkg) => {
@@ -86,7 +64,7 @@ Status: Received at ASKR Warehouse
     })
   }
 
-  const handleReceiveSubmit = () => {
+  const handleReceiveSubmit = async () => {
     if (!receivingPackage) return
 
     const updatedPackages = extraPackages.map((pkg) =>
@@ -111,35 +89,17 @@ Status: Received at ASKR Warehouse
     setExtraPackages(updatedPackages)
     setPackageStatuses(updatedStatuses)
 
-    const updatedPkg = updatedPackages.find(p => p.id === receivingPackage.id)
+    const updatedPkg = updatedPackages.find((p) => p.id === receivingPackage.id)
 
-    // 🔥 TRIGGER EMAIL HERE
-    sendPackageEmail(updatedPkg)
+    try {
+      await sendPackageEmail(updatedPkg)
+      alert("Package received + real email sent")
+    } catch (error) {
+      console.error("Email failed:", error)
+      alert("Package received, but email failed. Check EmailJS settings.")
+    }
 
     setReceivingPackage(null)
-
-    alert("Package received + email triggered")
-  }
-
-  const updateRequestStatus = (id, status) => {
-    const requestToUpdate = requests.find((r) => r.id === id)
-    const requestPackages = getPackagesFromRequest(requestToUpdate)
-
-    const updatedRequests = requests.map((request) =>
-      request.id === id ? { ...request, status } : request
-    )
-
-    const updatedPackageStatuses = { ...packageStatuses }
-
-    requestPackages.forEach((pkg) => {
-      if (pkg.id) updatedPackageStatuses[pkg.id] = getNewPackageStatus(requestToUpdate.type)
-    })
-
-    setRequests(updatedRequests)
-    setPackageStatuses(updatedPackageStatuses)
-
-    localStorage.setItem("requests", JSON.stringify(updatedRequests))
-    localStorage.setItem("packageStatuses", JSON.stringify(updatedPackageStatuses))
   }
 
   const incomingPackages = extraPackages.filter(
@@ -147,10 +107,6 @@ Status: Received at ASKR Warehouse
   )
 
   const pendingRequests = requests.filter((r) => r.status === "Pending")
-    const filteredRequests =
-    requestFilter === "All"
-      ? requests
-      : requests.filter((request) => request.status === requestFilter)
 
   const queueCards = [
     { title: "Incoming Packages", count: incomingPackages.length, icon: "🛬" },
@@ -170,15 +126,7 @@ Status: Received at ASKR Warehouse
     ["LT", "Lisa Thompson", "lisa@email.com", 7, "Active"],
   ]
 
-  const basePackages = [
-    ["PKG-12345", "Jessly Robinson", "Amazon", packageStatuses["12345"] || "Missing Invoice"],
-    ["PKG-67890", "Jessly Robinson", "Nike", packageStatuses["67890"] || "In Storage"],
-    ["PKG-55219", "Robert Parker", "Apple", "Ready for Dispatch"],
-    ["PKG-33091", "Lisa Thompson", "Shein", "New Arrival"],
-  ]
-
   const packages = [
-    ...basePackages,
     ...extraPackages.map((pkg) => [
       `PKG-${pkg.id}`,
       pkg.customer || "Customer",
@@ -210,13 +158,7 @@ Status: Received at ASKR Warehouse
 
       {activePage === "overview" && (
         <main className="main-content">
-          <div className="topbar">
-            <div>
-              <h1>Admin Dashboard</h1>
-              <p>Operations overview for packages, requests, dispatch, and support.</p>
-            </div>
-          </div>
-
+          <h1>Admin Dashboard</h1>
           <section className="queue-section">
             <h2>Pending Actions</h2>
             <div className="queue-grid">
@@ -234,19 +176,10 @@ Status: Received at ASKR Warehouse
 
       {activePage === "incoming" && (
         <main className="main-content">
-          <div className="topbar">
-            <div>
-              <h1>Incoming Packages</h1>
-              <p>Receive packages and trigger customer arrival emails.</p>
-            </div>
-          </div>
+          <h1>Incoming Packages</h1>
+          <p>Receive packages and send customer arrival emails.</p>
 
           <section className="card">
-            <div className="topbar">
-              <h2>Master Incoming Tracker</h2>
-              <input className="search-input" placeholder="Search tracking number..." />
-            </div>
-
             <table className="customer-table">
               <thead>
                 <tr>
@@ -295,7 +228,6 @@ Status: Received at ASKR Warehouse
           {receivingPackage && (
             <section className="card" style={{ marginTop: "24px" }}>
               <h2>Receive Package: PKG-{receivingPackage.id}</h2>
-              <p>{receivingPackage.customer || "Customer"} • {receivingPackage.store} • {receivingPackage.tracking}</p>
 
               <div className="workflow-body">
                 <input placeholder="Weight e.g. 0.2 lbs" value={receiveForm.weight} onChange={(e) => setReceiveForm({ ...receiveForm, weight: e.target.value })} />
@@ -307,8 +239,12 @@ Status: Received at ASKR Warehouse
                 <textarea placeholder="Condition notes" value={receiveForm.notes} onChange={(e) => setReceiveForm({ ...receiveForm, notes: e.target.value })} />
 
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button className="confirm-btn" onClick={handleReceiveSubmit}>Confirm Receive + Email</button>
-                  <button className="confirm-btn" onClick={() => setReceivingPackage(null)}>Cancel</button>
+                  <button className="confirm-btn" onClick={handleReceiveSubmit}>
+                    Confirm Receive + Send Email
+                  </button>
+                  <button className="confirm-btn" onClick={() => setReceivingPackage(null)}>
+                    Cancel
+                  </button>
                 </div>
               </div>
             </section>
@@ -318,10 +254,7 @@ Status: Received at ASKR Warehouse
 
       {activePage === "customers" && (
         <main className="main-content">
-          <div className="topbar">
-            <div><h1>Customers</h1><p>Manage customers and activity.</p></div>
-          </div>
-
+          <h1>Customers</h1>
           <section className="card">
             <table className="customer-table">
               <thead><tr><th>Name</th><th>Email</th><th>Packages</th><th>Status</th><th>Action</th></tr></thead>
@@ -343,10 +276,7 @@ Status: Received at ASKR Warehouse
 
       {activePage === "packages" && (
         <main className="main-content">
-          <div className="topbar">
-            <div><h1>Packages</h1><p>Track package flow from arrival to dispatch.</p></div>
-          </div>
-
+          <h1>Packages</h1>
           <section className="card">
             <table className="customer-table">
               <thead><tr><th>Package ID</th><th>Customer</th><th>Store</th><th>Status</th><th>Action</th></tr></thead>
@@ -368,9 +298,8 @@ Status: Received at ASKR Warehouse
 
       {activePage === "dispatch" && (
         <main className="main-content">
-          <div className="topbar">
-            <div><h1>Dispatch</h1><p>Manage ready shipments and carrier assignments.</p></div>
-          </div>
+          <h1>Dispatch</h1>
+          <p>Manage ready shipments and carrier assignments.</p>
         </main>
       )}
     </div>
