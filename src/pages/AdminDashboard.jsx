@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
 import emailjs from "@emailjs/browser"
 import "../App.css"
+import { listenToPackages, updatePackageStatus } from "../packageService"
 
 function AdminDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState("overview")
   const [requests, setRequests] = useState([])
-  const [packageStatuses, setPackageStatuses] = useState({})
   const [extraPackages, setExtraPackages] = useState([])
   const [receivingPackage, setReceivingPackage] = useState(null)
 
@@ -23,24 +23,15 @@ function AdminDashboard({ user, onLogout }) {
   const TEMPLATE_ID = "template_01d4wxw"
   const PUBLIC_KEY = "FvjojDypw5uHHRweU"
 
-  const loadSharedData = () => {
-    setRequests(JSON.parse(localStorage.getItem("requests")) || [])
-    setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
-    setExtraPackages(JSON.parse(localStorage.getItem("extraPackages")) || [])
-  }
-
   useEffect(() => {
-    loadSharedData()
-    window.addEventListener("askrDataUpdated", loadSharedData)
+    setRequests(JSON.parse(localStorage.getItem("requests")) || [])
 
-    return () => {
-      window.removeEventListener("askrDataUpdated", loadSharedData)
-    }
+    const unsubscribe = listenToPackages((data) => {
+      setExtraPackages(data)
+    })
+
+    return () => unsubscribe()
   }, [])
-
-  const notifyDataUpdated = () => {
-    window.dispatchEvent(new Event("askrDataUpdated"))
-  }
 
   const sendPackageEmail = async (pkg) => {
     const templateParams = {
@@ -76,47 +67,35 @@ function AdminDashboard({ user, onLogout }) {
   const handleReceiveSubmit = async () => {
     if (!receivingPackage) return
 
-    const updatedPackages = extraPackages.map((pkg) =>
-      pkg.id === receivingPackage.id
-        ? {
-            ...pkg,
-            status: "Received",
-            received: new Date().toLocaleDateString(),
-            storageDays: "0 days",
-            ...receiveForm,
-          }
-        : pkg
-    )
-
-    const updatedStatuses = {
-      ...packageStatuses,
-      [receivingPackage.id]: "Received",
+    const updatedPkg = {
+      ...receivingPackage,
+      status: "In Storage",
+      received: new Date().toLocaleDateString(),
+      storageStartDate: new Date().toISOString(),
+      storageDays: "0 days",
+      ...receiveForm,
     }
-
-    localStorage.setItem("extraPackages", JSON.stringify(updatedPackages))
-    localStorage.setItem("packageStatuses", JSON.stringify(updatedStatuses))
-
-    setExtraPackages(updatedPackages)
-    setPackageStatuses(updatedStatuses)
-    notifyDataUpdated()
-
-    const updatedPkg = updatedPackages.find((p) => p.id === receivingPackage.id)
 
     try {
-      await sendPackageEmail(updatedPkg)
-      alert("Package received + real email sent")
-    } catch (error) {
-      console.error("Email failed:", error)
-      alert("Package received, but email failed. Check EmailJS settings.")
-    }
+      await updatePackageStatus(receivingPackage.firebaseId, {
+        status: "In Storage",
+        received: new Date().toLocaleDateString(),
+        storageStartDate: new Date().toISOString(),
+        storageDays: "0 days",
+        ...receiveForm,
+      })
 
-    setReceivingPackage(null)
+      await sendPackageEmail(updatedPkg)
+
+      alert("Package received, moved to storage, and email sent")
+      setReceivingPackage(null)
+    } catch (error) {
+      console.error("Receive package failed:", error)
+      alert("Something failed. Check Firebase or EmailJS settings.")
+    }
   }
 
-  const incomingPackages = extraPackages.filter(
-    (pkg) => (packageStatuses[pkg.id] || pkg.status) === "Incoming"
-  )
-
+  const incomingPackages = extraPackages.filter((pkg) => pkg.status === "Incoming")
   const pendingRequests = requests.filter((r) => r.status === "Pending")
 
   const queueCards = [
@@ -141,7 +120,7 @@ function AdminDashboard({ user, onLogout }) {
     `PKG-${pkg.id}`,
     pkg.customer || "Customer",
     pkg.store,
-    packageStatuses[pkg.id] || pkg.status,
+    pkg.status,
   ])
 
   return (
@@ -186,7 +165,7 @@ function AdminDashboard({ user, onLogout }) {
       {activePage === "incoming" && (
         <main className="main-content">
           <h1>Incoming Packages</h1>
-          <p>Receive packages and send customer arrival emails.</p>
+          <p>Receive packages and move them directly into storage.</p>
 
           <section className="card">
             <table className="customer-table">
@@ -207,25 +186,21 @@ function AdminDashboard({ user, onLogout }) {
                   <tr><td colSpan="7">No incoming packages yet.</td></tr>
                 )}
 
-                {incomingPackages.map((pkg) => {
-                  const status = packageStatuses[pkg.id] || pkg.status
-
-                  return (
-                    <tr key={pkg.id}>
-                      <td>{pkg.customer || "Customer"}</td>
-                      <td><strong>PKG-{pkg.id}</strong></td>
-                      <td>{pkg.store}</td>
-                      <td>{pkg.tracking}</td>
-                      <td>{pkg.expectedDate || "Not provided"}</td>
-                      <td><span className="status pending">{status}</span></td>
-                      <td>
-                        <button className="confirm-btn" onClick={() => openReceiveForm(pkg)}>
-                          Receive Package
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {incomingPackages.map((pkg) => (
+                  <tr key={pkg.firebaseId || pkg.id}>
+                    <td>{pkg.customer || "Customer"}</td>
+                    <td><strong>PKG-{pkg.id}</strong></td>
+                    <td>{pkg.store}</td>
+                    <td>{pkg.tracking}</td>
+                    <td>{pkg.expectedDate || "Not provided"}</td>
+                    <td><span className="status pending">{pkg.status}</span></td>
+                    <td>
+                      <button className="confirm-btn" onClick={() => openReceiveForm(pkg)}>
+                        Receive Package
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </section>
