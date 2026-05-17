@@ -5,10 +5,7 @@ import "../App.css"
 function AdminDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState("overview")
   const [requests, setRequests] = useState([])
-  const [selectedRequest, setSelectedRequest] = useState(null)
-  const [requestFilter, setRequestFilter] = useState("All")
   const [packageStatuses, setPackageStatuses] = useState({})
-  const [consolidationGroups, setConsolidationGroups] = useState([])
   const [extraPackages, setExtraPackages] = useState([])
   const [receivingPackage, setReceivingPackage] = useState(null)
 
@@ -26,12 +23,24 @@ function AdminDashboard({ user, onLogout }) {
   const TEMPLATE_ID = "template_01d4wxw"
   const PUBLIC_KEY = "FvjojDypw5uHHRweU"
 
-  useEffect(() => {
+  const loadSharedData = () => {
     setRequests(JSON.parse(localStorage.getItem("requests")) || [])
     setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
-    setConsolidationGroups(JSON.parse(localStorage.getItem("consolidationGroups")) || [])
     setExtraPackages(JSON.parse(localStorage.getItem("extraPackages")) || [])
+  }
+
+  useEffect(() => {
+    loadSharedData()
+    window.addEventListener("askrDataUpdated", loadSharedData)
+
+    return () => {
+      window.removeEventListener("askrDataUpdated", loadSharedData)
+    }
   }, [])
+
+  const notifyDataUpdated = () => {
+    window.dispatchEvent(new Event("askrDataUpdated"))
+  }
 
   const sendPackageEmail = async (pkg) => {
     const templateParams = {
@@ -73,6 +82,7 @@ function AdminDashboard({ user, onLogout }) {
             ...pkg,
             status: "Received",
             received: new Date().toLocaleDateString(),
+            storageDays: "0 days",
             ...receiveForm,
           }
         : pkg
@@ -88,6 +98,7 @@ function AdminDashboard({ user, onLogout }) {
 
     setExtraPackages(updatedPackages)
     setPackageStatuses(updatedStatuses)
+    notifyDataUpdated()
 
     const updatedPkg = updatedPackages.find((p) => p.id === receivingPackage.id)
 
@@ -126,14 +137,12 @@ function AdminDashboard({ user, onLogout }) {
     ["LT", "Lisa Thompson", "lisa@email.com", 7, "Active"],
   ]
 
-  const packages = [
-    ...extraPackages.map((pkg) => [
-      `PKG-${pkg.id}`,
-      pkg.customer || "Customer",
-      pkg.store,
-      packageStatuses[pkg.id] || pkg.status,
-    ]),
-  ]
+  const packages = extraPackages.map((pkg) => [
+    `PKG-${pkg.id}`,
+    pkg.customer || "Customer",
+    pkg.store,
+    packageStatuses[pkg.id] || pkg.status,
+  ])
 
   return (
     <div className="dashboard-layout">
@@ -194,11 +203,11 @@ function AdminDashboard({ user, onLogout }) {
               </thead>
 
               <tbody>
-                {extraPackages.length === 0 && (
+                {incomingPackages.length === 0 && (
                   <tr><td colSpan="7">No incoming packages yet.</td></tr>
                 )}
 
-                {extraPackages.map((pkg) => {
+                {incomingPackages.map((pkg) => {
                   const status = packageStatuses[pkg.id] || pkg.status
 
                   return (
@@ -208,15 +217,11 @@ function AdminDashboard({ user, onLogout }) {
                       <td>{pkg.store}</td>
                       <td>{pkg.tracking}</td>
                       <td>{pkg.expectedDate || "Not provided"}</td>
-                      <td><span className={status === "Received" ? "status success" : "status pending"}>{status}</span></td>
+                      <td><span className="status pending">{status}</span></td>
                       <td>
-                        {status === "Incoming" ? (
-                          <button className="confirm-btn" onClick={() => openReceiveForm(pkg)}>
-                            Receive Package
-                          </button>
-                        ) : (
-                          <button className="confirm-btn" disabled>Received</button>
-                        )}
+                        <button className="confirm-btn" onClick={() => openReceiveForm(pkg)}>
+                          Receive Package
+                        </button>
                       </td>
                     </tr>
                   )

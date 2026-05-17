@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import "../App.css"
+import { listenToPackages, addPackageToFirebase } from "../packageService"
 
 function Dashboard({ user, onLogout }) {
   const [selectedPackage, setSelectedPackage] = useState("12345")
@@ -14,11 +15,31 @@ function Dashboard({ user, onLogout }) {
     expectedDate: "",
   })
 
-  useEffect(() => {
+  const loadSharedData = () => {
     setRequests(JSON.parse(localStorage.getItem("requests")) || [])
     setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
-    setExtraPackages(JSON.parse(localStorage.getItem("extraPackages")) || [])
+  }
+
+  useEffect(() => {
+    loadSharedData()
+
+    const unsubscribe = listenToPackages((data) => {
+      setExtraPackages(data)
+    })
+
+    window.addEventListener("storage", loadSharedData)
+    window.addEventListener("askrDataUpdated", loadSharedData)
+
+    return () => {
+      unsubscribe()
+      window.removeEventListener("storage", loadSharedData)
+      window.removeEventListener("askrDataUpdated", loadSharedData)
+    }
   }, [])
+
+  const notifyDataUpdated = () => {
+    window.dispatchEvent(new Event("askrDataUpdated"))
+  }
 
   const basePackages = [
     {
@@ -49,7 +70,7 @@ function Dashboard({ user, onLogout }) {
 
   const packages = [...basePackages, ...extraPackages].map((pkg) => ({
     ...pkg,
-    status: packageStatuses[pkg.id] || pkg.status,
+    status: pkg.firebaseId ? pkg.status : packageStatuses[pkg.id] || pkg.status,
   }))
 
   const currentPackage = packages.find((pkg) => pkg.id === selectedPackage) || packages[0]
@@ -65,7 +86,7 @@ function Dashboard({ user, onLogout }) {
   const storagePendingCount = packages.filter((p) => p.status === "Storage Pending").length
   const consolidatedStorageCount = packages.filter((p) => p.status === "Consolidated - In Storage").length
 
-  const addIncomingPackage = () => {
+  const addIncomingPackage = async () => {
     if (!incomingForm.store || !incomingForm.tracking) {
       alert("Add store name and tracking number")
       return
@@ -75,6 +96,8 @@ function Dashboard({ user, onLogout }) {
       id: String(Date.now()).slice(-5),
       store: incomingForm.store,
       tracking: incomingForm.tracking,
+      customer: user?.name || "Customer",
+      email: user?.email || "customer@email.com",
       status: "Incoming",
       weight: "Pending",
       dimensions: "Pending",
@@ -84,18 +107,20 @@ function Dashboard({ user, onLogout }) {
       expectedDate: incomingForm.expectedDate || "Not provided",
     }
 
-    const updated = [newPackage, ...extraPackages]
-    localStorage.setItem("extraPackages", JSON.stringify(updated))
-    setExtraPackages(updated)
+    await addPackageToFirebase(newPackage)
+
     setSelectedPackage(newPackage.id)
     setIncomingForm({ store: "", tracking: "", expectedDate: "" })
+    notifyDataUpdated()
   }
 
-  const simulateIncomingPackage = () => {
+  const simulateIncomingPackage = async () => {
     const newPackage = {
       id: String(Date.now()).slice(-5),
       store: ["Shein", "Zara", "Amazon", "Nike"][Math.floor(Math.random() * 4)],
       tracking: "SIM-" + Date.now(),
+      customer: user?.name || "Customer",
+      email: user?.email || "customer@email.com",
       status: "Incoming",
       weight: "Pending",
       dimensions: "Pending",
@@ -105,10 +130,10 @@ function Dashboard({ user, onLogout }) {
       expectedDate: new Date().toLocaleDateString(),
     }
 
-    const updated = [newPackage, ...extraPackages]
-    localStorage.setItem("extraPackages", JSON.stringify(updated))
-    setExtraPackages(updated)
+    await addPackageToFirebase(newPackage)
+
     setSelectedPackage(newPackage.id)
+    notifyDataUpdated()
   }
 
   const createRequest = (type, packageList = [currentPackage]) => {
@@ -147,6 +172,7 @@ function Dashboard({ user, onLogout }) {
     setRequests(updatedRequests)
     setPackageStatuses(updatedStatuses)
     setSelectedForConsolidation([])
+    notifyDataUpdated()
 
     alert(`${type} submitted successfully`)
   }
@@ -174,6 +200,7 @@ function Dashboard({ user, onLogout }) {
     const updated = requests.filter((request) => request.status !== "Completed")
     localStorage.setItem("requests", JSON.stringify(updated))
     setRequests(updated)
+    notifyDataUpdated()
   }
 
   const getJourneyStep = (status) => {
@@ -304,7 +331,8 @@ function Dashboard({ user, onLogout }) {
                 </button>
               </div>
             </section>
-                        <section className="workflow-card" style={{ marginBottom: "24px" }}>
+
+            <section className="workflow-card" style={{ marginBottom: "24px" }}>
               <div className="workflow-header">
                 <h2>Action Center</h2>
                 <p>Actions apply to selected package: <strong>#{currentPackage.id} - {currentPackage.store}</strong></p>
@@ -331,7 +359,7 @@ function Dashboard({ user, onLogout }) {
                     </thead>
                     <tbody>
                       {packages.map((pkg) => (
-                        <tr key={pkg.id} onClick={() => setSelectedPackage(pkg.id)} className={selectedPackage === pkg.id ? "selected-row" : ""}>
+                        <tr key={pkg.firebaseId || pkg.id} onClick={() => setSelectedPackage(pkg.id)} className={selectedPackage === pkg.id ? "selected-row" : ""}>
                           <td>#{pkg.id}</td>
                           <td>{pkg.store}</td>
                           <td><span className="status-badge storage">{pkg.status}</span></td>
@@ -444,7 +472,7 @@ function Dashboard({ user, onLogout }) {
                 {packages
                   .filter((pkg) => pkg.status.includes("Storage") || pkg.status === "In Storage")
                   .map((pkg) => (
-                    <div className="task-card" key={pkg.id}>
+                    <div className="task-card" key={pkg.firebaseId || pkg.id}>
                       <div>
                         <h3>#{pkg.id} - {pkg.store}</h3>
                         <p>{pkg.status} • {pkg.weight} • {pkg.storageDays}</p>
@@ -482,7 +510,7 @@ function Dashboard({ user, onLogout }) {
 
               <div className="workflow-body">
                 {packages.map((pkg) => (
-                  <label key={pkg.id}>
+                  <label key={pkg.firebaseId || pkg.id}>
                     <input
                       type="checkbox"
                       checked={selectedForConsolidation.includes(pkg.id)}
