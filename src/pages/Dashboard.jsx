@@ -6,7 +6,6 @@ function Dashboard({ user, onLogout }) {
   const [selectedPackage, setSelectedPackage] = useState("12345")
   const [activePage, setActivePage] = useState("packages")
   const [requests, setRequests] = useState([])
-  const [packageStatuses, setPackageStatuses] = useState({})
   const [extraPackages, setExtraPackages] = useState([])
   const [selectedForConsolidation, setSelectedForConsolidation] = useState([])
   const [incomingForm, setIncomingForm] = useState({
@@ -15,41 +14,26 @@ function Dashboard({ user, onLogout }) {
     expectedDate: "",
   })
 
-  const loadSharedData = () => {
-    setRequests(JSON.parse(localStorage.getItem("requests")) || [])
-    setPackageStatuses(JSON.parse(localStorage.getItem("packageStatuses")) || {})
-  }
-
   useEffect(() => {
-    loadSharedData()
+    setRequests(JSON.parse(localStorage.getItem("requests")) || [])
 
     const unsubscribe = listenToPackages((data) => {
       setExtraPackages(data)
     })
 
-    window.addEventListener("storage", loadSharedData)
-    window.addEventListener("askrDataUpdated", loadSharedData)
-
-    return () => {
-      unsubscribe()
-      window.removeEventListener("storage", loadSharedData)
-      window.removeEventListener("askrDataUpdated", loadSharedData)
-    }
+    return () => unsubscribe()
   }, [])
-
-  const notifyDataUpdated = () => {
-    window.dispatchEvent(new Event("askrDataUpdated"))
-  }
 
   const basePackages = [
     {
       id: "12345",
       store: "Amazon",
       tracking: "1Z999AA10123456784",
-      status: "Received",
+      status: "In Storage",
       weight: "3.2 lbs",
       dimensions: "12 x 10 x 8 in",
       received: "May 20, 2025",
+      storageStartDate: "2025-05-20",
       storageDays: "13 days",
       location: "A-12-03",
       expectedDate: "May 20, 2025",
@@ -62,15 +46,27 @@ function Dashboard({ user, onLogout }) {
       weight: "5.1 lbs",
       dimensions: "16 x 12 x 10 in",
       received: "May 19, 2025",
+      storageStartDate: "2025-05-19",
       storageDays: "12 days",
       location: "B-08-11",
       expectedDate: "May 19, 2025",
     },
   ]
 
+  const getStorageDays = (pkg) => {
+    if (!pkg.storageStartDate) return pkg.storageDays || "0 days"
+
+    const start = new Date(pkg.storageStartDate)
+    const today = new Date()
+    const diffTime = today - start
+    const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+
+    return `${diffDays} day${diffDays === 1 ? "" : "s"}`
+  }
+
   const packages = [...basePackages, ...extraPackages].map((pkg) => ({
     ...pkg,
-    status: pkg.firebaseId ? pkg.status : packageStatuses[pkg.id] || pkg.status,
+    storageDays: pkg.status === "In Storage" ? getStorageDays(pkg) : pkg.storageDays,
   }))
 
   const currentPackage = packages.find((pkg) => pkg.id === selectedPackage) || packages[0]
@@ -79,7 +75,6 @@ function Dashboard({ user, onLogout }) {
   const completedRequests = requests.filter((r) => r.status === "Completed")
   const consolidationGroups = JSON.parse(localStorage.getItem("consolidationGroups")) || []
 
-  const receivedCount = packages.filter((p) => p.status === "Received").length
   const incomingCount = packages.filter((p) => p.status === "Incoming").length
   const storageCount = packages.filter((p) => p.status.includes("Storage") || p.status === "In Storage").length
   const readyCount = packages.filter((p) => p.status === "Ready for Dispatch").length
@@ -102,16 +97,15 @@ function Dashboard({ user, onLogout }) {
       weight: "Pending",
       dimensions: "Pending",
       received: "Not received yet",
+      storageStartDate: "",
       storageDays: "0 days",
       location: "Awaiting arrival",
       expectedDate: incomingForm.expectedDate || "Not provided",
     }
 
     await addPackageToFirebase(newPackage)
-
     setSelectedPackage(newPackage.id)
     setIncomingForm({ store: "", tracking: "", expectedDate: "" })
-    notifyDataUpdated()
   }
 
   const simulateIncomingPackage = async () => {
@@ -125,15 +119,14 @@ function Dashboard({ user, onLogout }) {
       weight: "Pending",
       dimensions: "Pending",
       received: "Not received yet",
+      storageStartDate: "",
       storageDays: "0 days",
       location: "Awaiting arrival",
       expectedDate: new Date().toLocaleDateString(),
     }
 
     await addPackageToFirebase(newPackage)
-
     setSelectedPackage(newPackage.id)
-    notifyDataUpdated()
   }
 
   const createRequest = (type, packageList = [currentPackage]) => {
@@ -152,27 +145,10 @@ function Dashboard({ user, onLogout }) {
       date: new Date().toLocaleString(),
     }
 
-    const updatedStatuses = { ...packageStatuses }
-
-    packageList.forEach((pkg) => {
-      updatedStatuses[pkg.id] =
-        type.includes("Consolidation") ? "Consolidation Pending" :
-        type.includes("Invoice") ? "Invoice Pending" :
-        type.includes("Dispatch") ? "Dispatch Pending" :
-        type.includes("Extend Storage") ? "Storage Pending" :
-        type.includes("Hold") ? "Storage Pending" :
-        "Request Pending"
-    })
-
     const updatedRequests = [newRequest, ...saved]
-
     localStorage.setItem("requests", JSON.stringify(updatedRequests))
-    localStorage.setItem("packageStatuses", JSON.stringify(updatedStatuses))
-
     setRequests(updatedRequests)
-    setPackageStatuses(updatedStatuses)
     setSelectedForConsolidation([])
-    notifyDataUpdated()
 
     alert(`${type} submitted successfully`)
   }
@@ -200,16 +176,14 @@ function Dashboard({ user, onLogout }) {
     const updated = requests.filter((request) => request.status !== "Completed")
     localStorage.setItem("requests", JSON.stringify(updated))
     setRequests(updated)
-    notifyDataUpdated()
   }
 
   const getJourneyStep = (status) => {
     if (status === "Incoming") return 1
-    if (status === "Received") return 2
-    if (status.includes("Storage") || status === "In Storage") return 3
-    if (status.includes("Consolidated")) return 4
-    if (status === "Ready for Dispatch") return 5
-    if (status.includes("Dispatch") || status === "Out for Delivery") return 6
+    if (status.includes("Storage") || status === "In Storage") return 2
+    if (status.includes("Consolidated")) return 3
+    if (status === "Ready for Dispatch") return 4
+    if (status.includes("Dispatch") || status === "Out for Delivery") return 5
     return 1
   }
 
@@ -260,7 +234,6 @@ function Dashboard({ user, onLogout }) {
 
             <section className="stats-grid">
               <div className="stat-card blue"><div className="stat-icon">🛬</div><div><h3>{incomingCount}</h3><p>Incoming</p></div></div>
-              <div className="stat-card green"><div className="stat-icon">📦</div><div><h3>{receivedCount}</h3><p>Received</p></div></div>
               <div className="stat-card orange"><div className="stat-icon">🏬</div><div><h3>{storageCount}</h3><p>In Storage</p></div></div>
               <div className="stat-card purple"><div className="stat-icon">🚚</div><div><h3>{readyCount}</h3><p>Ready Dispatch</p></div></div>
             </section>
@@ -281,8 +254,8 @@ function Dashboard({ user, onLogout }) {
                   <span className="status pending">{currentPackage.status}</span>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px", marginTop: "14px" }}>
-                  {["Incoming", "Received", "Storage", "Consolidated", "Ready", "Dispatched"].map((step, index) => (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "10px", marginTop: "14px" }}>
+                  {["Incoming", "Storage", "Consolidated", "Ready", "Dispatched"].map((step, index) => (
                     <div
                       key={step}
                       style={{
@@ -413,6 +386,8 @@ function Dashboard({ user, onLogout }) {
                   <div className="detail-row"><span>Dimensions</span><strong>{currentPackage.dimensions}</strong></div>
                   <div className="detail-row"><span>Expected</span><strong>{currentPackage.expectedDate}</strong></div>
                   <div className="detail-row"><span>Received</span><strong>{currentPackage.received}</strong></div>
+                  <div className="detail-row"><span>Storage Started</span><strong>{currentPackage.storageStartDate || "Not started"}</strong></div>
+                  <div className="detail-row"><span>Storage Days</span><strong>{currentPackage.storageDays}</strong></div>
                   <div className="detail-row"><span>Location</span><strong>{currentPackage.location}</strong></div>
                 </div>
               </aside>
@@ -465,7 +440,7 @@ function Dashboard({ user, onLogout }) {
             <section className="workflow-card">
               <div className="workflow-header">
                 <h2>Stored Packages</h2>
-                <p>All individual packages currently in a storage status.</p>
+                <p>All individual packages currently in storage.</p>
               </div>
 
               <div className="workflow-body">
