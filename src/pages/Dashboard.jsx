@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import "../App.css"
-import { listenToPackages, addPackageToFirebase } from "../packageService"
+import { listenToPackages, addPackageToFirebase } from "./packageService"
 
 function Dashboard({ user, onLogout }) {
   const [selectedPackage, setSelectedPackage] = useState("12345")
